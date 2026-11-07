@@ -44,14 +44,17 @@ Tell your agent to listen first:
   terminal to interrupt; "stop listening" turns it off.
 - **Codex**: say "listen to the canvas". It loops `canvas wait`, which blocks until you send a prompt.
 
-The chip next to the box shows **agent listening** (green) or **agent offline** (prompts queue until
-the agent picks them up).
+The chip next to the box shows **agent listening** (green), **agent working** (orange), or **agent not
+listening** (prompts queue until the agent picks them up). A prompt the agent took but never answered
+shows "no reply yet" instead of spinning forever, and is closed as soon as the agent asks for the next one.
 
 ## In the canvas
 
 | | |
 |---|---|
-| Click / drag | select / orbit · right-drag pan · scroll zoom · double-click frames the selection |
+| Click | aim the camera at the clicked point (object surface or ground). In Shot view, press `K` to key the new aim. |
+| Ctrl-click (or ⌘-click) | select an object; on empty space, deselect |
+| Drag | orbit · right-drag pan · scroll zoom · double-click frames the selection |
 | `W` `E` `R` | move / rotate / scale gizmo |
 | `F` · `Shift D` · `⌫` · `Esc` | frame · duplicate · delete · deselect |
 | `C` | toggle **Free** (orbit the set, see the camera path) and **Shot** (look through the timeline camera, letterboxed to the export size) |

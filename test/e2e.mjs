@@ -51,14 +51,19 @@ try {
   ok(true, 'page loads the scene');
 
   // click the tower to select it
-  const pt = await page.evaluate(() => {
+  const towerPt = () => page.evaluate(() => {
     const v = window.canvas.viewport; const m = v.meshes.get('tower').mesh;
     const p = m.position.clone(); p.y = 2.5; p.project(v.activeCam);
     const r = v.canvas.getBoundingClientRect();
     return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height };
   });
+  let pt = await towerPt();
   await page.mouse.click(pt.x, pt.y);
-  ok(await page.evaluate(() => window.canvas.store.state.selection) === 'tower', 'clicking an object selects it');
+  ok(await page.evaluate(() => window.canvas.store.state.selection) === null, 'plain click does not select');
+  await page.waitForTimeout(500); // the click aimed the camera at the tower, so it moved on screen
+  pt = await towerPt();
+  await page.keyboard.down('Control'); await page.mouse.click(pt.x, pt.y); await page.keyboard.up('Control');
+  ok(await page.evaluate(() => window.canvas.store.state.selection) === 'tower', 'ctrl-click selects the object');
 
   // drag the gizmo's centre handle
   const g = await page.evaluate(() => {
@@ -104,6 +109,23 @@ try {
   await page.waitForTimeout(200);
   const hook = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'bin/canvas.mjs'), 'hook', 'stop'], { env, input: '{}', encoding: 'utf8' }));
   ok(hook.decision === 'block' && /add a red cone/.test(hook.reason), 'Stop hook blocks with the canvas prompt');
+
+  // a prompt the agent took but never answered is closed when it asks for the next one
+  ok(await page.$$eval('.feed-item[data-status="taken"]', (els) => els.length) === 1, 'the hook-taken prompt shows as taken');
+  await cliAsync('wait', '--timeout', '1');
+  await page.waitForTimeout(300);
+  ok(await page.$$eval('.feed-item[data-status="taken"]', (els) => els.length) === 0, 'calling wait again closes prompts left without a reply');
+
+  // single click aims the camera at the clicked point
+  cli('view', 'free');
+  await page.waitForTimeout(200);
+  const before = await page.evaluate(() => window.canvas.viewport.freeOrbit.target.toArray());
+  const vp = await page.evaluate(() => { const r = window.canvas.viewport.canvas.getBoundingClientRect(); return { x: r.left + r.width * 0.25, y: r.top + r.height * 0.85 }; });
+  await page.mouse.click(vp.x, vp.y);
+  await page.waitForTimeout(500);
+  const after = await page.evaluate(() => window.canvas.viewport.freeOrbit.target.toArray());
+  ok(Math.hypot(after[0] - before[0], after[2] - before[2]) > 0.5, `click aims the camera at that point (${after.map((v) => v.toFixed(2))})`);
+  ok(await page.evaluate(() => window.canvas.store.state.selection) === 'tower', 'plain click keeps the selection');
 
   // renders
   const snap = cli('snapshot', '--t', '1');

@@ -96,7 +96,10 @@ canvas say --reply <promptId> "Raised the tower to 10 m and keyed a slower push-
 ```
 
 `canvas say` shows the reply in the canvas and marks the prompt done. Use `--working` for progress
-notes that should not close it. "this", "it" or "here" in a prompt refer to the `selected:` object and
+notes that should not close it, and **always finish with a final `say`** (without `--working`):
+otherwise the user sees "no reply yet". Then call `canvas wait` again straight away; a prompt is
+only delivered to an agent that is waiting. Calling `wait` also marks any prompt you already took
+as done and turns listen mode on. "this", "it" or "here" in a prompt refer to the `selected:` object and
 the `playhead:` time printed with it.
 
 How to listen depends on the agent:

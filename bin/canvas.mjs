@@ -55,7 +55,8 @@ Render (needs the canvas tab open)
                                                                  blockout video (mp4); prints its path
 
 Prompts from the canvas
-  canvas wait [--timeout 600] [--json]      block until the user types a prompt in the canvas; prints it
+  canvas wait [--timeout 600] [--json]      block until the user types a prompt in the canvas; prints it.
+                                            Marks earlier prompts done and turns listen mode on.
   canvas inbox                              list recent prompts and their status
   canvas say "text" [--reply <promptId>] [--working]   message shown in the canvas
   canvas listen on|off                      keep a Claude Code session waiting for canvas prompts (Stop hook)
@@ -172,6 +173,7 @@ function formatPrompt(p) {
   if (c.time != null) lines.push(`playhead: ${Number(c.time).toFixed(2)}s of ${c.duration}s, view: ${c.view}${c.key ? `, key: ${c.key}` : ''}`);
   if (c.camera) lines.push(`camera: pos=${c.camera.position.map((v) => +v.toFixed(2)).join(',')} target=${c.camera.target.map((v) => +v.toFixed(2)).join(',')} fov=${+c.camera.fov.toFixed(1)}`);
   lines.push(`→ do it with canvas commands, then: canvas say --reply ${p.id} "<one line on what changed>"`);
+  lines.push('→ then run "canvas wait" again so the next canvas prompt reaches you (until the user says stop).');
   return lines.join('\n');
 }
 
@@ -339,6 +341,9 @@ const commands = {
   async wait({ flags }) {
     const timeout = flags.timeout != null ? num(flags.timeout) : 600;
     const start = Date.now();
+    // Waiting for canvas prompts means this agent is listening: keep it that way across turns
+    // (Claude Code's Stop hook uses this flag). `canvas listen off` or --no-listen opts out.
+    if (flags.listen !== false) await api('POST', '/api/listen', { on: true }, { quietFail: true });
     // Long-poll in slices so a dropped connection does not lose more than one slice.
     while (true) {
       const left = timeout - (Date.now() - start) / 1000;
@@ -387,7 +392,7 @@ const commands = {
       // UserPromptSubmit: hand over anything queued in the canvas as extra context.
       const got = [];
       for (let i = 0; i < 10; i++) {
-        const r = await api('GET', '/api/prompt/next', undefined, { quietFail: true });
+        const r = await api('GET', '/api/prompt/next?keep=1', undefined, { quietFail: true });
         if (!r?.prompt) break;
         got.push(formatPrompt(r.prompt));
       }

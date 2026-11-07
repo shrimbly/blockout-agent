@@ -41,7 +41,7 @@ function refreshSel() {
 
 // ---------- help (top right) ----------
 const SHORTCUTS = [
-  ['Click', 'select an object'], ['W E R', 'move / rotate / scale'], ['F', 'frame selection (or all)'],
+  ['Click', 'aim the camera at that point'], ['Ctrl Click', 'select an object (⌘ works too)'], ['W E R', 'move / rotate / scale'], ['F', 'frame selection (or all)'],
   ['Shift D', 'duplicate'], ['⌫', 'delete object or key'], ['Esc', 'deselect'],
   ['Space', 'play / pause'], ['K', 'key the current view at the playhead'], ['C', 'Free ↔ Shot camera'],
   ['← →', 'step a frame (Shift: 1 s)'], ['Home', 'go to start'], ['/', 'prompt your agent'], ['⌘Z ⇧⌘Z', 'undo / redo'],

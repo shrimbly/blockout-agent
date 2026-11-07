@@ -121,11 +121,25 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   let listen = false;
   try { listen = !!JSON.parse(fs.readFileSync(listenPath, 'utf8')).on; } catch {}
   const agentListening = () => waiters.length > 0 || Date.now() - lastAgentPoll < 3000;
-  const agentWorking = () => prompts.some((p) => p.status === 'taken' && Date.now() - (p.takenAt || 0) < 30 * 60 * 1000);
-  const statusPayload = () => ({ agent: agentListening(), working: agentWorking(), listen, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
+  // "Working" only while the agent is visibly active (ops, renders, messages, polls). An agent that took a
+  // prompt and then went quiet for 2 minutes is reported as idle, so the canvas never shows a stuck spinner.
+  let lastAgentActivity = 0;
+  const touchAgent = () => { lastAgentActivity = Date.now(); };
+  const agentWorking = () => prompts.some((p) => p.status === 'taken') && Date.now() - lastAgentActivity < 120000;
+  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
   let lastStatus = '';
   const pushStatus = () => { const s = JSON.stringify(statusPayload()); if (s !== lastStatus) { lastStatus = s; broadcast('status', statusPayload()); } };
   setInterval(pushStatus, 2000).unref();
+
+  // The agent asking for the next prompt means it has finished the ones it already took.
+  function closeTaken() {
+    for (const p of prompts) {
+      if (p.status !== 'taken') continue;
+      p.status = 'done'; p.doneAt = Date.now(); p.autoClosed = true;
+      broadcast('prompt', p);
+    }
+    savePrompts();
+  }
 
   function takePrompt() {
     const p = prompts.find((x) => x.status === 'pending');
@@ -188,6 +202,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     'POST /api/op': async (req, res) => {
       const body = await readJson(req);
       const ops = body.ops ?? body;
+      if (body.source !== 'ui') touchAgent();
       try {
         const { doc: next, results } = applyOps(doc, ops);
         commit(next, body.source || 'agent', body.label || [].concat(ops).map((o) => o.op).join(', '));
@@ -225,6 +240,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
 
     'POST /api/rpc': async (req, res) => {
       const { method, params, timeout } = await readJson(req);
+      touchAgent();
       try { json(res, 200, { ok: true, result: await rpc(method, params, timeout || 30000) }); }
       catch (e) { json(res, e.status || 500, { ok: false, error: e.message }); }
     },
@@ -257,7 +273,8 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       json(res, 200, { ok: true, prompt: p, agent: agentListening() });
     },
     'GET /api/prompt/next': (req, res, url) => {
-      lastAgentPoll = Date.now();
+      lastAgentPoll = Date.now(); touchAgent();
+      if (url.searchParams.get('keep') !== '1') closeTaken();
       const p = takePrompt();
       if (p) { pushStatus(); return json(res, 200, { ok: true, prompt: p }); }
       const wait = Math.min(Number(url.searchParams.get('wait') || 0), 3600) * 1000;
@@ -288,7 +305,11 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
 
     // ----- messages: agent -> canvas -----
     'POST /api/say': async (req, res) => {
-      const { text, reply, kind = 'info', done = true } = await readJson(req);
+      const { text, reply: replyTo, kind = 'info', done = true } = await readJson(req);
+      touchAgent();
+      // A reply without --reply answers the prompt the agent is working on, if there is exactly one.
+      const taken = prompts.filter((x) => x.status === 'taken');
+      const reply = replyTo || (taken.length === 1 ? taken[0].id : undefined);
       const entry = { from: 'agent', text: String(text || ''), reply, kind, at: Date.now() };
       appendLog(entry);
       broadcast('say', entry);

@@ -54,9 +54,11 @@ export function mountPrompt(root, { viewport }) {
       items.set(p.id, el);
       feed.append(el);
     }
+    const busy = p.status === 'taken' && (store.state.working || store.state.agent);
+    const label = p.status === 'taken' && !busy ? 'no reply yet' : STATUS[p.status] || p.status;
     el.replaceChildren(
       h('span.feed-text', {}, p.text),
-      h('span.feed-meta', {}, p.status === 'taken' ? h('span.cc-spin') : null, STATUS[p.status] || p.status),
+      h('span.feed-meta', {}, busy ? h('span.cc-spin') : null, label),
     );
     el.dataset.status = p.status;
     trim();
@@ -76,6 +78,7 @@ export function mountPrompt(root, { viewport }) {
   store.on('say', (m) => { messages.push(m); renderMessage(m); });
   store.on('history', ({ prompts: ps = [], messages: ms = [] }) => {
     feed.replaceChildren(); items.clear();
+    for (const p of ps) prompts.set(p.id, p);
     const all = [...ps.map((p) => ({ at: p.at, p })), ...ms.map((m) => ({ at: m.at, m }))].sort((a, b) => a.at - b.at).slice(-8);
     for (const x of all) x.p ? renderPrompt(x.p) : renderMessage(x.m);
   });
@@ -92,7 +95,10 @@ export function mountPrompt(root, { viewport }) {
     ctxChip.textContent = sel ? `@${sel}` : `${store.state.time.toFixed(1)}s`;
     ctxChip.title = sel ? 'The selected object is sent with your prompt' : 'The playhead and camera are sent with your prompt';
   }
-  store.on('state', (c) => { if (c.agent || c.working || c.listen || c.selection || c.time) refresh(); });
+  store.on('state', (c) => {
+    if (c.agent || c.working || c.listen || c.selection || c.time) refresh();
+    if (c.agent || c.working) for (const p of prompts.values()) if (p.status === 'taken') renderPrompt(p);
+  });
   refresh();
 
   return { focus: () => input.focus(), input };

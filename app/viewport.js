@@ -151,8 +151,14 @@ export class Viewport {
       const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
       ray.setFromCamera(ndc, this.activeCam);
       const hit = ray.intersectObjects([...this.meshes.values()].map((m) => m.mesh), false)[0];
-      store.set({ selection: hit ? hit.object.userData.id : null });
+      // Ctrl/Cmd-click selects (or clears the selection on empty space). Plain click aims the camera
+      // at the clicked point: the object surface, else the ground.
+      if (e.ctrlKey || e.metaKey) { store.set({ selection: hit ? hit.object.userData.id : null }); return; }
+      const point = hit ? hit.point : ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+      if (point && point.distanceTo(this.activeCam.position) < 1500) this.aimAt(point);
     });
+    // On macOS Ctrl-click also fires a context menu: suppress it over the canvas.
+    this.canvas.addEventListener('contextmenu', (e) => { if (e.ctrlKey) e.preventDefault(); });
     this.canvas.addEventListener('dblclick', () => { if (store.state.selection) this.frame(store.state.selection); });
   }
 
@@ -325,10 +331,31 @@ export class Viewport {
     if (store.state.view === 'shot') store.set({ camDirty: true });
   }
 
+  /** Smoothly turn the active camera to look at a world point (it stays where it is). */
+  aimAt(point, ms = 280) {
+    const orbit = this.activeOrbit;
+    this.aim = { orbit, from: orbit.target.clone(), to: point.clone(), start: performance.now(), ms };
+    if (store.state.view === 'shot') {
+      if (store.state.playing) store.set({ playing: false });
+      store.set({ camDirty: true }); // press K to key the new framing
+    }
+  }
+
+  _stepAim() {
+    const a = this.aim;
+    if (!a) return;
+    const u = Math.min(1, (performance.now() - a.start) / a.ms);
+    const k = 1 - Math.pow(1 - u, 3);
+    a.orbit.target.lerpVectors(a.from, a.to, k);
+    a.orbit.update();
+    if (u >= 1 || a.orbit !== this.activeOrbit) this.aim = null;
+  }
+
   // ---------- per frame ----------
   tick() {
     const { view, time, camDirty } = store.state;
     if (!store.doc) return;
+    this._stepAim();
     // shot camera follows the timeline unless the user is hand-framing it
     if (!(view === 'shot' && camDirty)) this.poseCamera(this.shotCam, time, view === 'shot' ? this.shotOrbit : null);
     if (view === 'free') {
