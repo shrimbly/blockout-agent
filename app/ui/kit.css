@@ -1,0 +1,77 @@
+/* Camera Canvas UI kit. Components are .cc-* classes built by app/ui/kit.js. */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--cc-bg); color: var(--cc-text);
+  font: var(--cc-size)/1.35 var(--cc-font); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+
+.cc-panel { background: var(--cc-surface); backdrop-filter: blur(14px) saturate(1.2); -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--cc-line); border-radius: var(--cc-radius-lg); box-shadow: var(--cc-shadow); }
+.cc-panel__head { display: flex; align-items: center; gap: var(--cc-gap); height: 28px; padding: 0 var(--cc-pad);
+  color: var(--cc-text-dim); font-weight: 600; letter-spacing: .02em; text-transform: uppercase; font-size: var(--cc-size-sm);
+  cursor: default; user-select: none; }
+.cc-panel__head > .cc-spacer { flex: 1; }
+.cc-panel__body { display: flex; flex-direction: column; gap: var(--cc-gap); padding: 0 var(--cc-pad) var(--cc-pad); }
+.cc-panel.is-collapsed .cc-panel__body { display: none; }
+
+.cc-row { display: flex; align-items: center; gap: var(--cc-gap); min-height: var(--cc-h); }
+.cc-row > .cc-label { width: 64px; flex: none; }
+.cc-row > :not(.cc-label) { flex: 1; min-width: 0; }
+.cc-spacer { flex: 1; }
+.cc-label { color: var(--cc-text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-mono { font-family: var(--cc-mono); font-variant-numeric: tabular-nums; }
+.cc-divider { width: 1px; align-self: stretch; margin: 3px 2px; background: var(--cc-line); flex: none; }
+.cc-divider--h { width: auto; height: 1px; margin: 2px 0; }
+
+.cc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 5px; height: var(--cc-h); min-width: var(--cc-h);
+  padding: 0 8px; border: 1px solid transparent; border-radius: var(--cc-radius); background: var(--cc-surface-sunk);
+  cursor: pointer; white-space: nowrap; user-select: none; transition: background var(--cc-dur) var(--cc-ease), color var(--cc-dur); }
+.cc-btn:hover { background: var(--cc-line); }
+.cc-btn:active { transform: translateY(0.5px); }
+.cc-btn:focus-visible, .cc-field:focus-visible, .cc-select:focus-visible { outline: 2px solid var(--cc-accent); outline-offset: 1px; }
+.cc-btn--ghost { background: transparent; }
+.cc-btn--ghost:hover { background: var(--cc-surface-sunk); }
+.cc-btn--primary { background: var(--cc-text); color: var(--cc-surface-solid); }
+.cc-btn--primary:hover { background: var(--cc-text); opacity: .88; }
+.cc-btn--icon { padding: 0; width: var(--cc-h); }
+.cc-btn.is-active { background: var(--cc-accent-soft); color: var(--cc-accent); }
+.cc-btn--danger:hover { color: var(--cc-danger); }
+.cc-btn:disabled { opacity: .4; pointer-events: none; }
+.cc-btn svg { width: 14px; height: 14px; flex: none; }
+
+.cc-seg { display: inline-flex; height: var(--cc-h); padding: 2px; gap: 2px; border-radius: var(--cc-radius); background: var(--cc-surface-sunk); }
+.cc-seg svg { width: 14px; height: 14px; display: block; }
+.cc-seg > button { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; height: 100%; padding: 0 8px; border: 0; border-radius: calc(var(--cc-radius) - 2px); background: transparent; cursor: pointer; color: var(--cc-text-dim); }
+.cc-seg > button.is-active { background: var(--cc-surface-solid); color: var(--cc-text); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+
+.cc-field, .cc-select { height: var(--cc-h); padding: 0 7px; border: 1px solid var(--cc-line); border-radius: var(--cc-radius);
+  background: var(--cc-surface-solid); min-width: 0; }
+.cc-field:hover, .cc-select:hover { border-color: var(--cc-line-strong); }
+.cc-num { width: 58px; font-family: var(--cc-mono); font-variant-numeric: tabular-nums; text-align: right; cursor: ew-resize; }
+.cc-num:focus { cursor: text; }
+.cc-select { padding-right: 4px; cursor: pointer; }
+.cc-color { width: var(--cc-h); height: var(--cc-h); padding: 2px; border: 1px solid var(--cc-line); border-radius: var(--cc-radius); background: var(--cc-surface-solid); cursor: pointer; flex: none !important; }
+.cc-color::-webkit-color-swatch-wrapper { padding: 0; }
+.cc-color::-webkit-color-swatch { border: 0; border-radius: 3px; }
+
+.cc-slider { display: flex; align-items: center; gap: var(--cc-gap); }
+.cc-slider input[type=range] { flex: 1; min-width: 0; accent-color: var(--cc-accent); height: var(--cc-h); }
+.cc-slider .cc-num { width: 46px; }
+
+.cc-toggle { position: relative; width: 28px !important; height: 16px; flex: none !important; border-radius: 8px; border: 0; background: var(--cc-line-strong); cursor: pointer; transition: background var(--cc-dur); }
+.cc-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: transform var(--cc-dur) var(--cc-ease); }
+.cc-toggle.is-on { background: var(--cc-accent); }
+.cc-toggle.is-on::after { transform: translateX(12px); }
+
+.cc-chip { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 7px; border-radius: 10px; background: var(--cc-surface-sunk); color: var(--cc-text-dim); white-space: nowrap; }
+.cc-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--cc-text-faint); flex: none; }
+.cc-dot--ok { background: var(--cc-ok); box-shadow: 0 0 0 3px rgba(47,158,91,.18); }
+.cc-dot--warn { background: var(--cc-warn); }
+.cc-dot--accent { background: var(--cc-accent); }
+.cc-kbd { font-family: var(--cc-mono); font-size: var(--cc-size-sm); padding: 1px 4px; border-radius: 3px; border: 1px solid var(--cc-line); color: var(--cc-text-dim); }
+
+.cc-toast-stack { position: fixed; left: 50%; bottom: 128px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; pointer-events: none; z-index: 50; }
+.cc-toast { padding: 6px 10px; pointer-events: auto; animation: cc-in 160ms var(--cc-ease); max-width: 520px; }
+.cc-toast--error { color: var(--cc-danger); }
+@keyframes cc-in { from { opacity: 0; transform: translateY(4px); } }
+@keyframes cc-spin { to { transform: rotate(360deg); } }
+.cc-spin { width: 10px; height: 10px; border: 1.5px solid var(--cc-line-strong); border-top-color: var(--cc-accent); border-radius: 50%; animation: cc-spin .8s linear infinite; flex: none; }

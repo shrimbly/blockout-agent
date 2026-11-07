@@ -1,0 +1,24 @@
+{
+  "name": "camera-canvas",
+  "version": "0.1.0",
+  "description": "Minimal three.js blockout canvas driven by your coding agent (Claude Code or Codex).",
+  "scripts": {
+    "up": "node bin/canvas.mjs up",
+    "start": "node bin/canvas.mjs serve",
+    "test": "node --test test/run.mjs",
+    "e2e": "node test/e2e.mjs",
+    "skills:sync": "node bin/sync-skills.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "mediabunny": "^1.65.2",
+    "three": "^0.187.0"
+  },
+  "type": "module",
+  "bin": {
+    "canvas": "bin/canvas.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node bin/canvas.mjs:*)",
+      "Bash(npm test)",
+      "Bash(npm run e2e)",
+      "Bash(npm run skills:sync)",
+      "Read(scenes/exports/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/bin/canvas.mjs\" hook stop", "timeout": 3600 }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/bin/canvas.mjs\" hook prompt", "timeout": 15 }
+        ]
+      }
+    ]
+  }
+}

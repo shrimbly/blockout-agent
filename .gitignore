@@ -1,0 +1,5 @@
+node_modules/
+scenes/
+.canvas/
+*.log
+.DS_Store

@@ -1,0 +1,65 @@
+/* Camera Canvas design tokens. Every control uses these, never raw values.
+   See docs/DESIGN.md before adding or changing anything here. */
+:root {
+  /* surfaces */
+  --cc-bg: #e9e7e2;              /* scene background default (lives in the doc, this is the fallback) */
+  --cc-surface: rgba(250, 249, 247, 0.92);
+  --cc-surface-solid: #faf9f7;
+  --cc-surface-sunk: rgba(20, 20, 18, 0.05);
+  --cc-line: rgba(20, 20, 18, 0.12);
+  --cc-line-strong: rgba(20, 20, 18, 0.24);
+
+  /* text */
+  --cc-text: #1c1c1a;
+  --cc-text-dim: #6b6a66;
+  --cc-text-faint: #9a9893;
+
+  /* one accent, used for "active / selected / now" only */
+  --cc-accent: #ff5a1f;
+  --cc-accent-soft: rgba(255, 90, 31, 0.14);
+  --cc-ok: #2f9e5b;
+  --cc-warn: #c98a0b;
+  --cc-danger: #d23c2c;
+
+  /* geometry */
+  --cc-radius: 6px;
+  --cc-radius-lg: 10px;
+  --cc-gap: 6px;
+  --cc-pad: 8px;
+  --cc-h: 24px;                  /* every control is this tall */
+  --cc-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 24px rgba(0, 0, 0, 0.08);
+
+  /* type */
+  --cc-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+  --cc-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --cc-size: 11px;
+  --cc-size-sm: 10px;
+
+  --cc-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cc-dur: 120ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cc-surface: rgba(28, 28, 27, 0.9);
+    --cc-surface-solid: #1c1c1b;
+    --cc-surface-sunk: rgba(255, 255, 255, 0.06);
+    --cc-line: rgba(255, 255, 255, 0.1);
+    --cc-line-strong: rgba(255, 255, 255, 0.22);
+    --cc-text: #ecebe8;
+    --cc-text-dim: #a3a29d;
+    --cc-text-faint: #6f6e6a;
+    --cc-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+}
+:root[data-theme="dark"] {
+  --cc-surface: rgba(28, 28, 27, 0.9);
+  --cc-surface-solid: #1c1c1b;
+  --cc-surface-sunk: rgba(255, 255, 255, 0.06);
+  --cc-line: rgba(255, 255, 255, 0.1);
+  --cc-line-strong: rgba(255, 255, 255, 0.22);
+  --cc-text: #ecebe8;
+  --cc-text-dim: #a3a29d;
+  --cc-text-faint: #6f6e6a;
+  --cc-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px rgba(0, 0, 0, 0.35);
+}
