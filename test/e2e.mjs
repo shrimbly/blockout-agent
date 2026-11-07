@@ -92,29 +92,29 @@ try {
   const waiting = cliAsync('wait', '--timeout', '20');
   await page.waitForFunction(() => window.canvas.store.state.agent === true, null, { timeout: 5000 });
   ok(true, 'canvas shows the agent as listening');
-  await page.fill('.prompt-input', 'make the tower twice as tall');
+  await page.fill('.chat-input', 'make the tower twice as tall');
   await page.keyboard.press('Enter');
   const got = await waiting;
   ok(/make the tower twice as tall/.test(got) && /selected: tower/.test(got), 'canvas wait receives the prompt with selection context');
   const id = got.match(/\[canvas prompt (\w+)\]/)[1];
   cli('set', 'tower', '--h', '10');
   cli('say', '--reply', id, 'Tower is now 10 m tall');
-  await page.waitForSelector('.feed-item--agent');
-  ok(await page.$eval(`.feed-item[data-status="done"]`, () => true).catch(() => false), 'prompt marked done after the reply');
+  await page.waitForSelector('.chat-msg--agent');
+  ok(await page.$eval(`.chat-msg[data-status="done"]`, () => true).catch(() => false), 'prompt marked done after the reply');
   ok(await page.evaluate(() => window.canvas.viewport.meshes.get('tower').mesh.geometry.boundingBox.max.y) > 9.9, 'agent edit re-renders in the canvas');
 
   // the Claude Code Stop hook hands a queued prompt back to the session
-  await page.fill('.prompt-input', 'add a red cone');
+  await page.fill('.chat-input', 'add a red cone');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
   const hook = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'bin/canvas.mjs'), 'hook', 'stop'], { env, input: '{}', encoding: 'utf8' }));
   ok(hook.decision === 'block' && /add a red cone/.test(hook.reason), 'Stop hook blocks with the canvas prompt');
 
   // a prompt the agent took but never answered is closed when it asks for the next one
-  ok(await page.$$eval('.feed-item[data-status="taken"]', (els) => els.length) === 1, 'the hook-taken prompt shows as taken');
+  ok(await page.$$eval('.chat-msg[data-status="taken"]', (els) => els.length) === 1, 'the hook-taken prompt shows as taken');
   await cliAsync('wait', '--timeout', '1');
   await page.waitForTimeout(300);
-  ok(await page.$$eval('.feed-item[data-status="taken"]', (els) => els.length) === 0, 'calling wait again closes prompts left without a reply');
+  ok(await page.$$eval('.chat-msg[data-status="taken"]', (els) => els.length) === 0, 'calling wait again closes prompts left without a reply');
 
   // single click aims the camera at the clicked point
   cli('view', 'free');

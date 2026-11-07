@@ -1,4 +1,4 @@
-// Camera Canvas bootstrap: connects to the bridge server, wires the viewport, timeline, prompt box,
+// Camera Canvas bootstrap: connects to the bridge server, wires the viewport, timeline, chat sidebar,
 // registered controls, keyboard shortcuts and the RPC methods the agent calls (canvas seek/snapshot/export...).
 
 import { store } from './store.js';
@@ -13,7 +13,7 @@ const $ = (id) => document.getElementById(id);
 const viewport = new Viewport($('stage'));
 const renderer = createRenderer(viewport);
 const timeline = mountTimeline($('timeline'), { viewport, exporter: renderer });
-const prompt = mountPrompt($('prompt'), { viewport });
+const prompt = mountPrompt($('prompt'), { viewport, corner: $('corner') });
 window.canvas = { store, viewport, renderer, timeline }; // handy in the devtools console
 
 // ---------- selection chip (top left) ----------

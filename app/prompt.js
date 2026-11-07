@@ -1,24 +1,60 @@
-// In-scene prompt box. Prompts go to the bridge server's inbox; the user's agent (Claude Code or Codex)
+// Chat sidebar. Prompts go to the bridge server's inbox; the user's agent (Claude Code or Codex)
 // picks them up with `canvas wait` (or the Claude Code Stop hook) and answers with `canvas say`.
+// The panel docks on the right; it collapses to a button in the top-right corner.
 
-import { h, icon } from './ui/kit.js';
+import { h, icon, button } from './ui/kit.js';
 import { describe } from '/core/doc.js';
 import { store } from './store.js';
 
-export function mountPrompt(root, { viewport }) {
-  const dot = h('span.cc-dot');
-  const statusText = h('span');
-  const status = h('span.cc-chip.prompt-status', { title: '' }, dot, statusText);
-  const input = h('input.prompt-input', { type: 'text', placeholder: 'Ask your agent to change the scene…', spellcheck: false, autocomplete: 'off' });
-  const send = h('button.cc-btn.cc-btn--primary.cc-btn--icon.prompt-send', { type: 'button', title: 'Send to your agent (Enter)' }, icon('send'));
-  const ctxChip = h('span.cc-chip.prompt-ctx');
-  const box = h('div.cc-panel.prompt-box', {}, status, ctxChip, input, send);
-  const feed = h('div.prompt-feed');
-  root.append(feed, box);
+const OPEN_KEY = 'cc-chat-open';
 
+export function mountPrompt(root, { viewport, corner }) {
+  // ---------- header ----------
+  const dot = h('span.cc-dot');
+  const statusText = h('span.chat-status-text');
+  const collapseBtn = button({ icon: 'panelRight', kind: 'ghost', title: 'Hide chat', onClick: () => setOpen(false) });
+  const head = h('div.chat-head', {}, dot, statusText, h('span.cc-spacer'), collapseBtn);
+
+  // ---------- thread ----------
+  const thread = h('div.chat-thread', { role: 'log', 'aria-live': 'polite' });
+  const empty = h('div.chat-empty', {},
+    h('div.chat-empty-title', {}, 'Talk to your agent'),
+    h('p', {}, 'Messages go to your Claude Code or Codex session with your selection, the playhead and the camera attached.'),
+    h('p', {}, 'In your agent, say ', h('b', {}, '“listen to the canvas”'), ' so it picks them up.'),
+  );
+
+  // ---------- composer ----------
+  const ctxSel = h('span.cc-chip.chat-ctx');
+  const ctxTime = h('span.cc-chip.chat-ctx.cc-mono');
+  const input = h('textarea.chat-input', { rows: 1, placeholder: 'Ask your agent to change the scene…', spellcheck: false });
+  const send = h('button.cc-btn.cc-btn--primary.cc-btn--icon.chat-send', { type: 'button', title: 'Send (Enter) · new line (Shift+Enter)' }, icon('send'));
+  const composer = h('div.chat-composer', {}, h('div.chat-ctx-row', {}, ctxSel, ctxTime), h('div.chat-input-row', {}, input, send));
+
+  const panel = h('section.cc-panel.chat', { 'aria-label': 'Chat with your agent' }, head, thread, composer);
+  root.append(panel);
+
+  // collapsed state: a button in the top-right corner
+  const unread = h('span.chat-unread');
+  const openBtn = button({ icon: 'chat', kind: 'ghost', title: 'Show chat (/)', onClick: () => { setOpen(true); input.focus(); } });
+  openBtn.classList.add('chat-open-btn');
+  openBtn.append(unread);
+  corner.prepend(openBtn);
+
+  let open = true;
+  try { open = localStorage.getItem(OPEN_KEY) !== '0'; } catch {}
+  function setOpen(v) {
+    open = v;
+    try { localStorage.setItem(OPEN_KEY, v ? '1' : '0'); } catch {}
+    panel.hidden = !v;
+    openBtn.hidden = v;
+    document.body.classList.toggle('chat-open', v);
+    if (v) { unread.hidden = true; scrollToEnd(); }
+    store.set({ chat: v });
+  }
+
+  // ---------- state ----------
   const prompts = new Map(); // id -> prompt
-  const items = new Map();   // id -> element
-  let messages = [];
+  const items = new Map();   // prompt id -> element
 
   function context() {
     const sel = store.state.selection && store.object(store.state.selection);
@@ -36,70 +72,103 @@ export function mountPrompt(root, { viewport }) {
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
+    autosize();
     const res = await store.post('/api/prompt', { text, context: context() });
-    if (!res.ok) { input.value = text; return; }
+    if (!res.ok) { input.value = text; autosize(); }
   }
+  function autosize() { input.style.height = 'auto'; input.style.height = `${Math.min(140, input.scrollHeight)}px`; }
+  input.addEventListener('input', autosize);
   input.addEventListener('keydown', (e) => {
     e.stopPropagation();
-    if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submit(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
     if (e.key === 'Escape') input.blur();
   });
   send.addEventListener('click', submit);
 
-  const STATUS = { pending: 'queued', taken: 'agent working', done: 'done' };
+  const nearEnd = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 60;
+  const scrollToEnd = () => requestAnimationFrame(() => { thread.scrollTop = thread.scrollHeight; });
+  const time = (at) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  function ctxLine(c = {}) {
+    const bits = [];
+    if (c.selection?.length) bits.push(`@${c.selection[0].split(' ')[0]}`);
+    if (c.time != null) bits.push(`${Number(c.time).toFixed(1)}s`);
+    if (c.view) bits.push(c.view);
+    return bits.join(' · ');
+  }
+
+  function statusEl(p) {
+    const busy = p.status === 'taken' && (store.state.working || store.state.agent);
+    if (p.status === 'done') return h('span.chat-meta.is-done', {}, icon('check'), 'done');
+    if (p.status === 'pending') return h('span.chat-meta', {}, 'queued');
+    if (busy) return h('span.chat-meta.is-busy', {}, h('span.cc-spin'), 'working');
+    return h('span.chat-meta.is-stale', {}, 'no reply yet');
+  }
+
   function renderPrompt(p) {
     let el = items.get(p.id);
+    const stick = nearEnd();
     if (!el) {
-      el = h('div.feed-item.feed-item--user');
+      el = h('div.chat-msg.chat-msg--user');
       items.set(p.id, el);
-      feed.append(el);
+      thread.append(el);
     }
-    const busy = p.status === 'taken' && (store.state.working || store.state.agent);
-    const label = p.status === 'taken' && !busy ? 'no reply yet' : STATUS[p.status] || p.status;
-    el.replaceChildren(
-      h('span.feed-text', {}, p.text),
-      h('span.feed-meta', {}, busy ? h('span.cc-spin') : null, label),
-    );
     el.dataset.status = p.status;
-    trim();
+    el.replaceChildren(
+      h('div.chat-bubble', {}, p.text),
+      h('div.chat-foot', {}, h('span.chat-ctxline', {}, ctxLine(p.context)), statusEl(p)),
+    );
+    empty.remove();
+    if (stick) scrollToEnd();
   }
+
   function renderMessage(m) {
-    const el = h(`div.feed-item.feed-item--agent${m.kind === 'error' ? '.is-error' : ''}${m.kind === 'working' ? '.is-working' : ''}`, {}, h('span.feed-text', {}, m.text));
-    feed.append(el); // chronological: replies follow the prompt they answer
-    trim();
-  }
-  function trim() {
-    const kids = [...feed.children];
-    kids.forEach((el, i) => el.classList.toggle('is-old', i < kids.length - 4));
-    while (feed.children.length > 24) feed.firstElementChild.remove();
+    const stick = nearEnd();
+    const cls = ['chat-msg', 'chat-msg--agent'];
+    if (m.kind === 'error') cls.push('is-error');
+    if (m.kind === 'working') cls.push('is-working');
+    thread.append(h(`div.${cls.join('.')}`, {},
+      h('div.chat-who', {}, h('span', {}, m.from === 'system' ? 'Canvas' : 'Agent'), h('span.chat-time', {}, time(m.at))),
+      h('div.chat-text', {}, m.text)));
+    empty.remove();
+    if (!open) unread.hidden = false;
+    if (stick) scrollToEnd();
   }
 
   store.on('prompt', (p) => { prompts.set(p.id, p); renderPrompt(p); });
-  store.on('say', (m) => { messages.push(m); renderMessage(m); });
+  store.on('say', (m) => renderMessage(m));
   store.on('history', ({ prompts: ps = [], messages: ms = [] }) => {
-    feed.replaceChildren(); items.clear();
+    thread.replaceChildren(); items.clear();
     for (const p of ps) prompts.set(p.id, p);
-    const all = [...ps.map((p) => ({ at: p.at, p })), ...ms.map((m) => ({ at: m.at, m }))].sort((a, b) => a.at - b.at).slice(-8);
+    const all = [...ps.map((p) => ({ at: p.at, p })), ...ms.map((m) => ({ at: m.at, m }))].sort((a, b) => a.at - b.at).slice(-60);
+    if (!all.length) thread.append(empty);
     for (const x of all) x.p ? renderPrompt(x.p) : renderMessage(x.m);
+    unread.hidden = true;
+    scrollToEnd();
   });
 
   function refresh() {
     const { agent, working, listen } = store.state;
     dot.className = `cc-dot ${agent ? 'cc-dot--ok' : working ? 'cc-dot--accent' : ''}`;
-    statusText.textContent = agent ? 'agent listening' : working ? 'agent working' : 'agent not listening';
-    status.title = agent
+    statusText.textContent = agent ? 'Agent listening' : working ? 'Agent working' : 'Agent not listening';
+    head.title = agent
       ? 'Your agent is waiting for prompts from this canvas.'
       : working ? 'Your agent is working on a prompt. New prompts queue until it is done.'
-      : `Prompts queue until your agent listens. Ask it to "listen to the canvas" (runs canvas wait${listen ? '' : ', or canvas listen on in Claude Code'}).`;
+      : `Prompts queue until your agent listens. Ask it to "listen to the canvas"${listen ? '' : ' (runs canvas wait)'}.`;
     const sel = store.state.selection;
-    ctxChip.textContent = sel ? `@${sel}` : `${store.state.time.toFixed(1)}s`;
-    ctxChip.title = sel ? 'The selected object is sent with your prompt' : 'The playhead and camera are sent with your prompt';
+    ctxSel.hidden = !sel;
+    ctxSel.textContent = sel ? `@${sel}` : '';
+    ctxSel.title = 'The selected object is sent with your message';
+    ctxTime.textContent = `${store.state.time.toFixed(1)}s · ${store.state.view}`;
+    ctxTime.title = 'The playhead, view and camera are sent with your message';
   }
   store.on('state', (c) => {
-    if (c.agent || c.working || c.listen || c.selection || c.time) refresh();
+    if (c.agent || c.working || c.listen || c.selection || c.time || c.view) refresh();
     if (c.agent || c.working) for (const p of prompts.values()) if (p.status === 'taken') renderPrompt(p);
   });
+  thread.append(empty);
   refresh();
+  setOpen(open);
 
-  return { focus: () => input.focus(), input };
+  return { focus: () => { if (!open) setOpen(true); input.focus(); }, input, setOpen };
 }

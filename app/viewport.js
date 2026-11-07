@@ -11,7 +11,7 @@ import { store } from './store.js';
 const DEG = Math.PI / 180;
 const r3 = (v) => Math.round(v * 1000) / 1000;
 const ACCENT = new THREE.Color('#ff5a1f');
-const SAFE = { top: 64, bottom: 124, side: 16 }; // keep the shot frame clear of the floating UI
+const SAFE = { top: 52, bottom: 124, side: 16, chat: 364 }; // keep the shot frame clear of the floating UI
 
 export class Viewport {
   constructor(stage) {
@@ -42,6 +42,7 @@ export class Viewport {
       if (c.selection) this._applySelection();
       if (c.gizmo) this.gizmo.setMode(store.state.gizmo);
       if (c.key) this._rebuildPath();
+      if (c.chat) this.layout();
     });
   }
 
@@ -171,9 +172,10 @@ export class Viewport {
     let x = 0, y = 0, w = W, h = H;
     if (store.state.view === 'shot' && store.doc) {
       const A = store.doc.meta.width / store.doc.meta.height;
-      const aw = W - SAFE.side * 2, ah = H - SAFE.top - SAFE.bottom;
+      const right = store.state.chat ? SAFE.chat : SAFE.side;
+      const aw = W - SAFE.side - right, ah = H - SAFE.top - SAFE.bottom;
       if (aw / ah > A) { h = ah; w = ah * A; } else { w = aw; h = aw / A; }
-      x = (W - w) / 2; y = SAFE.top + (ah - h) / 2;
+      x = SAFE.side + (aw - w) / 2; y = SAFE.top + (ah - h) / 2;
     }
     Object.assign(this.stage.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
     this.stage.classList.toggle('is-shot', store.state.view === 'shot');

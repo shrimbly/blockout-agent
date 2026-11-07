@@ -1,8 +1,8 @@
 # Camera Canvas design system
 
-The canvas is a 3D scene with as little chrome as possible. The base UI is: a prompt box (top
-centre), a selection chip (top left, only while something is selected), a help button (top right)
-and the camera timeline (bottom). Everything else is a **control**: a small panel the user asks
+The canvas is a 3D scene with as little chrome as possible. The base UI is: a chat sidebar (right,
+collapsible), a selection chip (top left, only while something is selected), a help button (top right)
+and the camera timeline (bottom). The controls dock sits to the left of the chat sidebar. Everything else is a **control**: a small panel the user asks
 their agent to add. This document is the contract every control follows, so the UI stays coherent
 no matter who (or which agent) builds it.
 

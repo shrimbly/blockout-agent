@@ -24,5 +24,8 @@ export const ICONS = {
   undo: s('<path d="M5.5 6.5H11a3 3 0 0 1 0 6H7"/><path d="M7.5 4 5 6.5 7.5 9"/>'),
   redo: s('<path d="M10.5 6.5H5a3 3 0 0 0 0 6h4"/><path d="M8.5 4 11 6.5 8.5 9"/>'),
   sliders: s('<path d="M3 4h10M3 8h10M3 12h10"/><circle cx="6" cy="4" r="1.5" fill="var(--cc-surface-solid)"/><circle cx="10" cy="8" r="1.5" fill="var(--cc-surface-solid)"/><circle cx="5" cy="12" r="1.5" fill="var(--cc-surface-solid)"/>'),
+  chat: s('<path d="M2.5 4a1.5 1.5 0 0 1 1.5-1.5h8A1.5 1.5 0 0 1 13.5 4v6a1.5 1.5 0 0 1-1.5 1.5H7l-3 2.5v-2.5a1.5 1.5 0 0 1-1.5-1.5z"/>'),
+  panelRight: s('<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M10 2.5v11M5.5 6.5 7 8l-1.5 1.5"/>'),
+  check: s('<path d="m3.5 8.5 3 3 6-7"/>'),
   loop: s('<path d="M3 7V6a2 2 0 0 1 2-2h7.5M10.5 2l2 2-2 2M13 9v1a2 2 0 0 1-2 2H3.5M5.5 14l-2-2 2-2"/>'),
 };

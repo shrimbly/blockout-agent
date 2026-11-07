@@ -5,10 +5,10 @@ agent** (Claude Code or Codex), then exporting a blockout video to use as a refe
 generative video model.
 
 The interface is a ground plane, primitive shapes, gizmos when you click something, a camera
-timeline with easing and speed curves, and a prompt box. Everything else you ask your agent for.
+timeline with easing and speed curves, and a chat sidebar that talks to your agent. Everything else you ask your agent for.
 
 ```
- you ── prompt box in the canvas ──▶ bridge server ──▶ your agent session (same thread)
+ you ── chat sidebar in the canvas ──▶ bridge server ──▶ your agent session (same thread)
   ▲                                      │                      │
   └──────── live scene updates ◀─────────┴──── canvas CLI ◀─────┘
 ```
@@ -33,9 +33,11 @@ To use the skill from any folder: `node bin/sync-skills.mjs --global` (installs 
 
 ## Prompting from inside the canvas
 
-Type in the box at the top of the canvas. The prompt goes back to your agent session together with
-what you have selected, the playhead time and the camera pose, so "make this taller" or "slow the
-camera down here" just work. The agent's reply appears under your prompt.
+Type in the chat sidebar on the right (`/` focuses it; Enter sends, Shift+Enter adds a line). The
+message goes to your agent session together with what you have selected, the playhead time and the
+camera pose (shown as chips above the input), so "make this taller" or "slow the camera down here"
+just work. The agent's replies appear in the thread. Hide the sidebar with the panel button in its
+header; a dot on the chat button in the corner marks unread replies.
 
 Tell your agent to listen first:
 
@@ -44,7 +46,7 @@ Tell your agent to listen first:
   terminal to interrupt; "stop listening" turns it off.
 - **Codex**: say "listen to the canvas". It loops `canvas wait`, which blocks until you send a prompt.
 
-The chip next to the box shows **agent listening** (green), **agent working** (orange), or **agent not
+The sidebar header shows **agent listening** (green), **agent working** (orange), or **agent not
 listening** (prompts queue until the agent picks them up). A prompt the agent took but never answered
 shows "no reply yet" instead of spinning forever, and is closed as soon as the agent asks for the next one.
 

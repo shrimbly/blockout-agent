@@ -86,7 +86,7 @@ they help the video model read ground motion; `--grid off` removes them.
 
 ## 6. Prompts typed in the canvas
 
-The canvas has a prompt box. Prompts queue on the server and come back to **this session** with the
+The canvas has a chat sidebar. Prompts queue on the server and come back to **this session** with the
 user's selection, playhead time and camera pose attached. Pick one up, do it, then reply:
 
 ```bash

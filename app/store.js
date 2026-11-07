@@ -20,6 +20,7 @@ export const store = {
     working: false,        // an agent has taken a prompt and not replied yet
     listen: false,
     exporting: false,
+    chat: true,            // chat sidebar open
   },
 
   on(event, fn) {

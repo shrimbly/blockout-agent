@@ -55,7 +55,7 @@ core/curves.js        easing, speed curves, camera path sampling
 app/                  the browser app (no build step; three.js via import map)
   viewport.js         three.js scene, cameras, gizmos, offscreen rendering
   timeline.js         transport, key track, curve editor
-  prompt.js           in-scene prompt box
+  prompt.js           chat sidebar (prompts to the agent, replies from it)
   render.js           snapshot, storyboard, video export (WebCodecs → mp4)
   ui/                 design-system tokens, kit components, icons
   controls/           user-requested controls (empty by default) + template + example
