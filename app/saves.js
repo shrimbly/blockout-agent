@@ -1,7 +1,7 @@
 // Scenes menu: save the scene under a name, load an earlier save. Saves live in scenes/saved/ on the server,
 // next to a thumbnail of the shot at the playhead. Loading is a normal change, so ⌘Z brings the old scene back.
 
-import { h, button, panel, text, toast } from './ui/kit.js';
+import { h, button, panel, text, toast, icon } from './ui/kit.js';
 import { store } from './store.js';
 
 export function mountSaves(corner, { viewport }) {
@@ -17,8 +17,13 @@ export function mountSaves(corner, { viewport }) {
   p.body.append(h('div.cc-row', {}, name, saveBtn), list, hint);
   document.body.append(p);
 
-  const btn = button({ icon: 'folder', kind: 'ghost', title: 'Save / load scenes (⌘S)', onClick: () => toggle() });
+  // the menu button names the scene version you are on ("street-v2"); it is set when you save or load
+  const sceneName = h('span.scenes-name');
+  const btn = h('button.cc-btn.cc-btn--ghost.scenes-btn', { type: 'button', title: 'Scenes: save / load versions (⌘S)', onClick: () => toggle() }, icon('layers'), sceneName, icon('chevronDown'));
+  btn.setActive = (on) => btn.classList.toggle('is-active', !!on);
   corner.append(btn);
+  const showName = () => { sceneName.textContent = store.doc?.meta?.name || 'untitled'; };
+  store.on('doc', showName);
 
   function toggle(on = p.hidden) {
     p.hidden = !on;
@@ -80,5 +85,5 @@ export function mountSaves(corner, { viewport }) {
     if (e.key === 'Escape' && !p.hidden) toggle(false);
   }, true);
 
-  return { toggle, save, load };
+  return { toggle, save, load, btn };
 }

@@ -68,7 +68,7 @@ canvas key --t 2 --from-view          # key whatever the user is looking at righ
   custom cubic bezier `--ease 0.2,0,0,1`. `hold` freezes until the next key (a cut).
 - `canvas timeline --speed easeIn` remaps time across the whole shot (a speed ramp), on top of segment eases.
 - Path interpolation is a smooth spline through all keys (`--interp linear` for straight segments).
-- Defaults that work for video models: 24 fps, 3–8 s, 1280×720 (`canvas meta --width --height`).
+- Defaults that work for video models: 24 fps (decimals such as 23.976 are allowed), 3–8 s, 1280×720 (`canvas meta --width --height`).
   Lens: 24–28 mm wide/establishing, 35 mm natural, 50–85 mm close/portrait. Camera height 1.4–1.7 m
   reads as a person; low (0.3–0.6 m) reads as heroic.
 - Keep the target moving smoothly too; a still target with a moving camera reads as an orbit.

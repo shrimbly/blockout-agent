@@ -93,3 +93,10 @@ test('skill copies for Claude and Codex are identical', () => {
   assert.deepEqual(list(a), list(b));
   for (const f of list(a)) assert.equal(fs.readFileSync(path.join(a, f), 'utf8'), fs.readFileSync(path.join(b, f), 'utf8'), f);
 });
+
+test('frame rate defaults to 24 and accepts decimals', () => {
+  assert.equal(createDoc().timeline.fps, 24);
+  const { doc } = applyOps(createDoc(), [{ op: 'timeline', fps: 23.976 }]);
+  assert.equal(doc.timeline.fps, 23.976);
+  assert.throws(() => applyOps(createDoc(), [{ op: 'timeline', fps: 0.5 }]));
+});

@@ -1,40 +1,58 @@
 // Camera timeline: transport, keyframe track, selected-key controls and the easing / speed curve editor.
 
-import { h, button, segmented, number, select, icon, toast } from './ui/kit.js';
+import { h, button, segmented, number, select, icon, toast, affix, panel, toggle as onOff } from './ui/kit.js';
 import { EASES, bezier, bezierSpeed, resolveEase, easeName, sampleCamera, fovToLens, lensToFov } from '/core/curves.js';
 import { store } from './store.js';
 
 const PAD = 14;
-const EASE_OPTIONS = Object.keys(EASES).map((k) => ({ value: k, label: k }));
+const FPS_PRESETS = [24, 25, 30, 60];
+const SIZES = [[1280, 720], [1920, 1080], [3840, 2160], [1080, 1920], [1080, 1080], [1440, 1080]];
+const RETIME_KEY = 'cc-retime';
+
+/** A tiny inline SVG of an ease curve, for buttons. */
+export function easeSvg(ease, size = 14) {
+  const b = resolveEase(ease);
+  let d = '';
+  if (b === 'hold') d = 'M2 13H13V3';
+  else for (let i = 0; i <= 16; i++) { const u = i / 16; d += `${i ? 'L' : 'M'}${(2 + u * 12).toFixed(2)} ${(13 - bezier(b, u) * 10).toFixed(2)}`; }
+  return `<svg viewBox="0 0 16 16" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+}
+const fmtFps = (v) => String(+(+v).toFixed(3));
 
 export function mountTimeline(root, { viewport, exporter }) {
-  // ---------- bar ----------
-  const playBtn = button({ icon: 'play', title: 'Play / pause (Space)', kind: 'ghost', onClick: () => store.set({ playing: !store.state.playing }) });
+  // ---------- bar: play | camera | output ----------
+  const playBtn = button({ icon: 'play', title: 'Play / pause (Space)', onClick: () => store.set({ playing: !store.state.playing }) });
   const startBtn = button({ icon: 'start', title: 'Go to start (Home)', kind: 'ghost', onClick: () => seek(0) });
   const loopBtn = button({ icon: 'loop', title: 'Loop playback', kind: 'ghost', onClick: () => store.set({ loop: !store.state.loop }) });
-  const timeEl = h('span.cc-mono.tl-time');
+  const timeNow = h('span');
+  const timeDur = h('span.tl-faint');
+  const frameEl = h('span.cc-mono.tl-faint.tl-frame', { title: 'Frame at the playhead' });
+  const timeEl = h('span.cc-mono.tl-time', {}, timeNow, timeDur);
   const viewSeg = segmented({
-    options: [{ value: 'free', label: 'Free', title: 'Orbit the set (C)' }, { value: 'shot', label: 'Shot', title: 'Look through the timeline camera (C)' }],
+    options: [{ value: 'free', label: 'Free', icon: 'orbit', title: 'Orbit the set (C)' }, { value: 'shot', label: 'Shot', icon: 'camera', title: 'Look through the timeline camera (C)' }],
     value: store.state.view, onChange: (v) => store.set({ view: v }),
   });
   const keyBtn = button({ icon: 'keyAdd', label: 'Key', title: 'Key the current view at the playhead (K)', onClick: () => keyFromView() });
 
-  // selected key controls
-  const keyLabel = h('span.cc-chip.cc-mono');
-  const easeSel = select({ options: [...EASE_OPTIONS, { value: 'custom', label: 'custom' }], title: 'Easing from this key to the next', onChange: (v) => { if (v !== 'custom') updateKey({ ease: v }); } });
-  const lensNum = number({ step: 1, min: 8, max: 300, precision: 0, title: 'Lens (mm, full-frame equivalent)', width: 44, onChange: (v) => updateKey({ fov: +lensToFov(v).toFixed(3) }) });
-  const toViewBtn = button({ icon: 'camera', title: 'Set this key to the current view', kind: 'ghost', onClick: () => { const p = viewport.getPose(); updateKey({ position: p.position, target: p.target, fov: p.fov }); } });
+  // selected key: time, ease (opens the curve editor), lens, set to view, delete
+  const keyTime = h('span.cc-mono.tl-keytime');
+  const easeGlyph = h('span.tl-glyph');
+  const easeName_ = h('span');
+  const easeBtn = h('button.cc-field.tl-ease', { type: 'button', onClick: () => curve.toggle(undefined, 'segment') }, easeGlyph, easeName_, icon('chevronDown'));
+  const lensNum = number({ step: 1, min: 8, max: 300, precision: 0, title: 'Lens (mm, full-frame equivalent)', width: 34, onChange: (v) => updateKey({ fov: +lensToFov(v).toFixed(3) }) });
+  const toViewBtn = button({ icon: 'aim', title: 'Set this key to the current view', kind: 'ghost', onClick: () => { const p = viewport.getPose(); updateKey({ position: p.position, target: p.target, fov: p.fov }); } });
   const delKeyBtn = button({ icon: 'trash', title: 'Delete key', kind: 'ghost', onClick: () => deleteKey() });
-  const keyGroup = h('div.tl-keyctl', {}, keyLabel, easeSel, h('span.cc-label', {}, 'mm'), lensNum, toViewBtn, delKeyBtn);
-  const curveBtn = button({ icon: 'curve', title: 'Easing and speed curves', kind: 'ghost', onClick: () => curve.toggle() });
+  const keyGroup = h('div.tl-key', {}, h('span.tl-diamond'), keyTime, easeBtn, affix(lensNum, 'mm'), toViewBtn, delKeyBtn);
 
-  const durNum = number({ step: 0.1, min: 0.1, max: 600, precision: 2, title: 'Duration (s). Shift-drag for big steps.', width: 50, onChange: (v) => store.op({ op: 'timeline', duration: v }) });
-  const fpsNum = number({ step: 1, min: 1, max: 120, precision: 0, title: 'Frames per second', width: 36, onChange: (v) => store.op({ op: 'timeline', fps: v }) });
+  // output: shot settings chip + export
+  const shotDur = h('span'), shotFps = h('span');
+  const shotBtn = h('button.cc-btn.tl-shot', { type: 'button', title: 'Shot length, frame rate and size', onClick: () => shot.toggle() },
+    h('span.cc-mono', {}, shotDur, h('span.cc-affix__unit', {}, ' s')), h('span.tl-faint', {}, '·'), h('span.cc-mono', {}, shotFps, h('span.cc-affix__unit', {}, ' fps')), icon('chevronDown'));
   const exportBtn = button({ icon: 'film', label: 'Export', kind: 'primary', title: 'Render the blockout video (mp4)', onClick: () => exporter.exportVideo().catch((e) => toast(e.message, { kind: 'error' })) });
 
   const bar = h('div.tl-bar',
-    {}, startBtn, playBtn, timeEl, h('span.cc-divider'), viewSeg, keyBtn, keyGroup, curveBtn,
-    h('span.cc-spacer'), h('span.cc-label', {}, 'dur'), durNum, h('span.cc-label', {}, 'fps'), fpsNum, loopBtn, h('span.cc-divider'), exportBtn);
+    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, keyGroup,
+    h('span.cc-spacer'), shotBtn, exportBtn);
 
   // ---------- track ----------
   const track = h('canvas.tl-track');
@@ -194,32 +212,41 @@ export function mountTimeline(root, { viewport, exporter }) {
     if (!store.doc) return;
     const tl = store.doc.timeline;
     const t = store.state.time;
-    timeEl.textContent = `${t.toFixed(2)}s / ${tl.duration.toFixed(2)}s  f${Math.round(t * tl.fps)}`;
+    timeNow.textContent = t.toFixed(2);
+    timeDur.textContent = ` / ${tl.duration.toFixed(2)} s`;
+    frameEl.textContent = `f${Math.round(t * tl.fps)}`;
     playBtn.replaceChildren(icon(store.state.playing ? 'pause' : 'play'));
+    playBtn.title = store.state.playing ? 'Pause (Space)' : 'Play (Space)';
     loopBtn.setActive(store.state.loop);
     viewSeg.value = store.state.view;
     keyBtn.setActive(store.state.camDirty);
     keyBtn.title = store.state.camDirty ? 'The camera moved: press K to key this framing' : 'Key the current view at the playhead (K)';
-    durNum.set(tl.duration); fpsNum.set(tl.fps);
+    shotDur.textContent = tl.duration.toFixed(2);
+    shotFps.textContent = fmtFps(tl.fps);
     const k = store.state.key && store.keyById(store.state.key);
     keyGroup.style.display = k ? '' : 'none';
     if (k) {
       const sorted = keys();
       const i = sorted.findIndex((x) => x.id === k.id);
-      keyLabel.textContent = `${k.id} @ ${k.t.toFixed(2)}s`;
-      const name = easeName(k.ease);
-      easeSel.value = name;
-      easeSel.disabled = i === sorted.length - 1;
-      easeSel.title = i === sorted.length - 1 ? 'Last key: no segment after it' : 'Easing from this key to the next';
+      const last = i === sorted.length - 1;
+      keyTime.textContent = `${k.t.toFixed(2)} s`;
+      keyTime.title = `Key ${k.id}`;
+      easeGlyph.innerHTML = easeSvg(last ? 'linear' : k.ease);
+      easeName_.textContent = last ? 'last key' : easeName(k.ease);
+      easeBtn.disabled = last;
+      easeBtn.title = last ? 'Last key: no segment after it' : 'Easing from this key to the next (opens the curve editor)';
       lensNum.set(Math.round(fovToLens(k.fov)));
     }
     exportBtn.disabled = store.state.exporting;
     draw();
     curve.refresh();
+    shot.refresh();
   }
 
-  // ---------- curve editor ----------
-  const curve = mountCurveEditor(root, { updateKey, keys, onToggle: (open) => curveBtn.setActive(open), anchor: () => curveBtn });
+  // ---------- curve editor + shot settings ----------
+  const curve = mountCurveEditor(root, { updateKey, keys, onToggle: (open, mode) => { easeBtn.classList.toggle('is-open', open && mode === 'segment'); }, anchor: () => easeBtn });
+  const shot = mountShotSettings(root, { anchor: shotBtn, keys, openSpeed: () => { shot.toggle(false); curve.toggle(true, 'speed'); } });
+
 
   store.on('doc', refresh);
   store.on('state', refresh);
@@ -233,7 +260,7 @@ function mountCurveEditor(root, { updateKey, keys, onToggle, anchor }) {
   const cv = h('canvas.curve-canvas', { width: W * 2, height: H * 2, style: { width: `${W}px`, height: `${H}px` } });
   const ctx = cv.getContext('2d');
   let mode = 'segment';
-  const tabs = segmented({ options: [{ value: 'segment', label: 'Segment', title: 'Ease between two keys' }, { value: 'speed', label: 'Shot speed', title: 'Time remap across the whole shot' }], value: mode, onChange: (v) => { mode = v; refresh(); } });
+  const tabs = segmented({ options: [{ value: 'segment', label: 'Segment', title: 'Ease between two keys' }, { value: 'speed', label: 'Shot speed', title: 'Time remap across the whole shot' }], value: mode, onChange: (v) => { mode = v; onToggle?.(api.open, mode); refresh(); } });
   const title = h('span.cc-label.cc-mono');
   const presets = h('div.curve-presets');
   const help = h('div.curve-help.cc-label');
@@ -343,10 +370,89 @@ function mountCurveEditor(root, { updateKey, keys, onToggle, anchor }) {
     draw();
   }
 
-  function toggle(on = !api.open) {
-    api.open = on; pop.hidden = !on; onToggle?.(on);
-    if (on && anchor) { const r = anchor().getBoundingClientRect(); pop.style.left = `${Math.max(12, Math.min(innerWidth - 304, r.left - 140))}px`; }
+  function toggle(on, m) {
+    if (on === undefined) on = !(api.open && (!m || m === mode));
+    if (m) { mode = m; tabs.value = m; }
+    api.open = on; pop.hidden = !on; onToggle?.(on, mode);
+    if (on && anchor) {
+      const a = mode === 'speed' ? null : anchor();
+      const r = a && a.offsetParent ? a.getBoundingClientRect() : null;
+      pop.style.left = r ? `${Math.max(12, Math.min(innerWidth - 304, r.left - 40))}px` : '';
+    }
     refresh();
   }
+  return api;
+}
+
+
+/** Popover from the "5.00 s · 24 fps" chip: duration (with retime), frame rate (any value, presets), export size, shot speed. */
+function mountShotSettings(root, { anchor, keys, openSpeed }) {
+  let retime = true;
+  try { retime = localStorage.getItem(RETIME_KEY) !== '0'; } catch {}
+  const tlOp = (patch, label) => store.op({ op: 'timeline', ...patch }, label).catch(() => {});
+  const setDur = (v) => tlOp({ duration: +v.toFixed(3), retime: retime || undefined }, 'shot length');
+
+  const durNum = number({ step: 0.1, min: 0.1, max: 600, precision: 2, width: 44, title: 'Shot length in seconds. Drag to scrub, Shift for big steps.', onChange: setDur });
+  const less = button({ icon: 'minus', kind: 'ghost', title: 'Half a second shorter', onClick: () => setDur(Math.max(0.1, store.doc.timeline.duration - 0.5)) });
+  const more = button({ icon: 'plus', kind: 'ghost', title: 'Half a second longer', onClick: () => setDur(Math.min(600, store.doc.timeline.duration + 0.5)) });
+  const durField = h('div.cc-affix.shot-dur', {}, less, durNum, h('span.cc-affix__unit', {}, 's'), more);
+  const retimeSw = onOff({ value: retime, title: 'Scale key times with the shot length so the move keeps its timing', onChange: (v) => { retime = v; try { localStorage.setItem(RETIME_KEY, v ? '1' : '0'); } catch {} } });
+
+  const fpsNum = number({ step: 1, min: 1, max: 120, precision: 3, width: 48, title: 'Frames per second. Any value, e.g. 23.976.', onChange: (v) => tlOp({ fps: v }, 'frame rate') });
+  const fpsSeg = segmented({ options: FPS_PRESETS.map((f) => ({ value: String(f), label: String(f) })), title: 'Frame rate presets', onChange: (v) => tlOp({ fps: Number(v) }, 'frame rate') });
+  fpsSeg.classList.add('shot-presets');
+
+  const sizeSel = select({ options: [], title: 'Export size', onChange: (v) => { const [width, height] = v.split('x').map(Number); store.op({ op: 'meta', width, height }, 'export size').catch(() => {}); } });
+  const speedBtn = h('button.cc-field.tl-ease', { type: 'button', title: 'Shot speed: remaps time across the whole shot', onClick: () => openSpeed() });
+  const foot = h('div.cc-label.cc-mono.shot-foot');
+
+  const p = panel({ title: 'Shot', collapsible: false, actions: [button({ icon: 'close', kind: 'ghost', title: 'Close (Esc)', onClick: () => toggle(false) })] });
+  p.classList.add('shot-pop');
+  p.hidden = true;
+  const rowEl = (label, ...c) => h('div.cc-row', {}, h('span.cc-label', {}, label), ...c);
+  p.body.append(
+    rowEl('Duration', durField),
+    h('div.cc-row.shot-sub', {}, retimeSw, h('span.shot-sub-text', { onClick: () => retimeSw.click() }, 'Stretch keys to fit')),
+    rowEl('Frame rate', affix(fpsNum, 'fps')),
+    h('div.cc-row.shot-sub', {}, fpsSeg),
+    rowEl('Size', sizeSel),
+    rowEl('Speed', speedBtn),
+    h('div.cc-divider.cc-divider--h'),
+    foot,
+  );
+  document.body.append(p); // outside #timeline so it can sit above the chat panel
+
+  const api = { open: false, toggle, refresh };
+  function place() {
+    const r = anchor.getBoundingClientRect();
+    p.style.right = `${Math.max(12, innerWidth - r.right)}px`;
+  }
+  function toggle(on = p.hidden) {
+    api.open = on; p.hidden = !on;
+    anchor.classList.toggle('is-open', on);
+    anchor.replaceChild(icon(on ? 'chevronUp' : 'chevronDown'), anchor.lastElementChild);
+    if (on) { place(); refresh(); }
+  }
+  function refresh() {
+    if (!api.open || !store.doc) return;
+    const tl = store.doc.timeline, m = store.doc.meta;
+    durNum.set(tl.duration);
+    fpsNum.set(tl.fps);
+    fpsSeg.value = String(tl.fps);
+    const cur = `${m.width}x${m.height}`;
+    const opts = SIZES.map(([w, hh]) => `${w}x${hh}`);
+    if (!opts.includes(cur)) opts.unshift(cur);
+    const ratio = (w, hh) => { const g = (a, b) => (b ? g(b, a % b) : a); const d = g(w, hh); return `${w / d}:${hh / d}`; };
+    sizeSel.replaceChildren(...opts.map((o) => { const [w, hh] = o.split('x').map(Number); return h('option', { value: o }, `${w} × ${hh} · ${ratio(w, hh)}`); }));
+    sizeSel.value = cur;
+    const sp = tl.speed ?? 'linear';
+    speedBtn.innerHTML = easeSvg(sp);
+    speedBtn.append(h('span', {}, easeName(sp)), icon('chevronDown'));
+    const n = keys().length;
+    foot.textContent = `${Math.round(tl.duration * tl.fps)} frames · ${n} key${n === 1 ? '' : 's'}`;
+  }
+  addEventListener('pointerdown', (e) => { if (api.open && !p.contains(e.target) && !anchor.contains(e.target)) toggle(false); }, true);
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && api.open) { e.stopPropagation(); toggle(false); } }, true);
+  addEventListener('resize', () => { if (api.open) place(); });
   return api;
 }

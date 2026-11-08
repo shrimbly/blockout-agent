@@ -142,6 +142,20 @@ try {
   await page.waitForSelector('.saves-item img.saves-thumb', { timeout: 5000 });
   ok(/from-ui/.test(cli('saves')) && fs.existsSync(path.join(dir, 'saved', 'from-ui.png')), 'save from the canvas writes the scene and a thumbnail');
   await page.keyboard.press('Escape');
+  ok((await page.textContent('.scenes-name')) === 'from-ui', 'the Scenes button names the version you saved');
+
+  // chat toggle + shot settings
+  const chatOpen = await page.isVisible('.chat');
+  await page.click('.chat-toggle');
+  ok((await page.isVisible('.chat')) !== chatOpen, 'the sidebar toggle opens and closes the chat');
+  if (!chatOpen) await page.click('.chat-toggle');
+  await page.click('.tl-shot');
+  await page.fill('.shot-pop .cc-affix input.cc-num >> nth=1', '23.976');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  ok(JSON.parse(cli('doc')).timeline.fps === 23.976, 'frame rate can be typed with decimals');
+  cli('timeline', '--fps', '12');
+  await page.keyboard.press('Escape');
 
   // renders
   const snap = cli('snapshot', '--t', '1');

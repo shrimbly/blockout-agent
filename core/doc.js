@@ -272,7 +272,7 @@ export const OPS = {
     }
     if (op.fps != null) {
       if (!(op.fps >= 1 && op.fps <= 120)) throw new Error('fps must be 1–120');
-      tl.fps = Math.round(op.fps);
+      tl.fps = Math.round(op.fps * 1000) / 1000; // decimals allowed (23.976)
     }
     if (op.interp != null) {
       if (!['smooth', 'linear'].includes(op.interp)) throw new Error('interp must be "smooth" or "linear"');

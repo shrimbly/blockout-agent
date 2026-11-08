@@ -52,10 +52,11 @@ helpPanel.classList.add('help-panel');
 helpPanel.hidden = true;
 helpPanel.body.append(...SHORTCUTS.map(([k, v]) => h('div.help-row', {}, h('span.help-key', {}, ...k.split(' ').map(kbd)), h('span.help-text', {}, v))),
   h('div.cc-label.help-foot', {}, 'Orbit: drag · Pan: right-drag · Zoom: scroll'));
-const helpBtn = button({ icon: 'help', kind: 'ghost', title: 'Shortcuts (?)', onClick: () => { helpPanel.hidden = !helpPanel.hidden; } });
-$('corner').append(helpBtn);
-mountSaves($('corner'), { viewport });
+const helpBtn = button({ icon: 'keyboard', kind: 'ghost', title: 'Shortcuts (?)', onClick: () => { helpPanel.hidden = !helpPanel.hidden; helpBtn.setActive(!helpPanel.hidden); } });
+const saves = mountSaves($('corner'), { viewport });
 document.body.append(helpPanel);
+// top-right menu, one pill: Scenes · | · Shortcuts · Chat toggle
+$('corner').append(saves.btn, h('span.cc-divider'), helpBtn, prompt.toggleBtn);
 
 // ---------- controls dock (right) ----------
 const ctxFor = (c) => ({
@@ -111,12 +112,12 @@ addEventListener('keydown', (e) => {
     f: () => viewport.frame(store.state.selection),
     k: () => timeline.keyFromView(),
     c: () => store.set({ view: store.state.view === 'shot' ? 'free' : 'shot' }),
-    escape: () => { store.set({ selection: null, key: null }); helpPanel.hidden = true; },
+    escape: () => { store.set({ selection: null, key: null }); helpPanel.hidden = true; helpBtn.setActive(false); },
     backspace: () => (store.state.selection ? removeSelected() : timeline.deleteKey()),
     delete: () => (store.state.selection ? removeSelected() : timeline.deleteKey()),
     arrowleft: () => step(e.shiftKey ? -1 : -1 / f), arrowright: () => step(e.shiftKey ? 1 : 1 / f),
     home: () => timeline.seek(0), end: () => timeline.seek(store.doc.timeline.duration),
-    '/': () => prompt.focus(), '?': () => { helpPanel.hidden = !helpPanel.hidden; },
+    '/': () => prompt.focus(), '?': () => { helpPanel.hidden = !helpPanel.hidden; helpBtn.setActive(!helpPanel.hidden); },
   };
   if (e.shiftKey && k === 'd') { e.preventDefault(); return duplicate(); }
   const fn = map[k];

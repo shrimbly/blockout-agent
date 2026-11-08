@@ -128,6 +128,11 @@ export function number({ value = 0, step = 0.1, min = -Infinity, max = Infinity,
   return el;
 }
 
+/** affix(number(...), 'mm') — a field with its unit inside the border. Extra nodes go before the unit. */
+export function affix(control, unit, ...extra) {
+  return h('label.cc-affix', {}, control, unit ? h('span.cc-affix__unit', {}, unit) : null, ...extra);
+}
+
 /** select({ options: [{ value, label }] | ['a','b'], value, onChange }) */
 export function select({ options, value, onChange, title } = {}) {
   const opts = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));

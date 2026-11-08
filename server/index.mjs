@@ -251,6 +251,8 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       const file = path.join(savesDir, `${n}.json`);
       if (fs.existsSync(file) && !overwrite) return json(res, 409, { ok: false, error: `a save called "${n}" already exists (overwrite it, or pick another name)`, exists: true, name: n });
       fs.mkdirSync(savesDir, { recursive: true });
+      // the scene takes the save's name (shown in the Scenes menu, used for export file names); not an undo step
+      if (doc.meta.name !== n) { doc = { ...doc, meta: { ...doc.meta, name: n } }; rev++; persist(); broadcast('doc', { doc, rev, source: 'save' }); }
       fs.writeFileSync(file, JSON.stringify({ ...doc, meta: { ...doc.meta, savedAs: n, savedAt: new Date().toISOString() } }, null, 2) + '\n');
       broadcast('saves', { saves: listSaves() });
       json(res, 200, { ok: true, name: n, path: file });
@@ -270,6 +272,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       try { next = migrate(JSON.parse(fs.readFileSync(file, 'utf8'))); }
       catch (e) { return json(res, e.code === 'ENOENT' ? 404 : 400, { ok: false, error: e.code === 'ENOENT' ? `no save "${n}" (saves: ${listSaves().map((s) => s.name).join(', ') || 'none'})` : `could not read ${n}: ${e.message}` }); }
       delete next.meta.savedAs; delete next.meta.savedAt;
+      next.meta.name = n;
       commit(next, 'load', `load ${n}`); // undoable like any other change
       json(res, 200, { ok: true, name: n, rev, objects: next.objects.length, keys: next.timeline.keys.length });
     },

@@ -49,7 +49,8 @@ Dark mode is automatic (`prefers-color-scheme`), so controls that only use token
 | `button({ label?, icon?, kind })` | actions. `kind`: `default`, `ghost` (toolbars), `primary` (at most one per panel), `danger`. Icon-only buttons need `title`. |
 | `segmented({ options })` | 2–4 mutually exclusive modes. More than 4 → `select`. |
 | `select({ options })` | pick one of many named values (eases, presets). |
-| `number({ value, step, min, max, precision })` | numeric values. Drag to scrub (Shift ×10, Alt ×0.1), click to type. Show units in the row label (`Lens mm`). |
+| `number({ value, step, min, max, precision })` | numeric values. Drag to scrub (Shift ×10, Alt ×0.1), click to type. Put the unit inside the field with `affix(number(...), 'mm')`. |
+| `affix(control, unit)` | a field with its unit inside the border (`35 mm`, `24 fps`). |
 | `slider({ min, max, step })` | bounded values where the range matters (opacity, fog). Includes a number readout. |
 | `toggle({ value })` | on/off settings that apply immediately. |
 | `color({ value })` | `#rrggbb` colours. |

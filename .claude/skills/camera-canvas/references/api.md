@@ -41,7 +41,7 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 | `key.update` | `id` or `index` (by time order), any key field | `{ id }` |
 | `key.remove` | `id` or `index` | `{ removed }` |
 | `key.clear` | | `{ removed }` |
-| `timeline` | `duration`, `retime?` (scale key times), `fps`, `interp` (`smooth`/`linear`), `speed` (ease, whole shot), `ease` (set every key) | `{ timeline }` |
+| `timeline` | `duration`, `retime?` (scale key times), `fps` (1–120, decimals allowed e.g. 23.976; default 24), `interp` (`smooth`/`linear`), `speed` (ease, whole shot), `ease` (set every key) | `{ timeline }` |
 | `controls.set` | `key`, `value` (any JSON; omit to delete) — state for custom controls | `{ key }` |
 | `load` | `doc` — replace the whole scene | |
 | `batch` | `ops: []` | `{ results }` |

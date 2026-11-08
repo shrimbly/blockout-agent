@@ -49,6 +49,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .cc-num { width: 58px; font-family: var(--cc-mono); font-variant-numeric: tabular-nums; text-align: right; cursor: ew-resize; }
 .cc-num:focus { cursor: text; }
 .cc-select { padding-right: 4px; cursor: pointer; }
+.cc-affix { display: inline-flex; align-items: center; gap: 2px; height: var(--cc-h); padding: 0 6px 0 0; border: 1px solid var(--cc-line); border-radius: var(--cc-radius);
+  background: var(--cc-surface-solid); flex: none; }
+.cc-affix:hover { border-color: var(--cc-line-strong); }
+.cc-affix:focus-within { border-color: var(--cc-line-strong); }
+.cc-affix > .cc-field { height: calc(var(--cc-h) - 2px); border: 0; background: transparent; padding-right: 1px; }
+.cc-affix > .cc-btn { height: 20px; min-width: 20px; width: 20px; margin-left: 1px; }
+.cc-affix__unit { color: var(--cc-text-dim); font-size: var(--cc-size-sm); }
 .cc-color { width: var(--cc-h); height: var(--cc-h); padding: 2px; border: 1px solid var(--cc-line); border-radius: var(--cc-radius); background: var(--cc-surface-solid); cursor: pointer; flex: none !important; }
 .cc-color::-webkit-color-swatch-wrapper { padding: 0; }
 .cc-color::-webkit-color-swatch { border: 0; border-radius: 3px; }
