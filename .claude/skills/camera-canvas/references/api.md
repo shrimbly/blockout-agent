@@ -89,6 +89,11 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 `snapshot [--t s] [--view shot|free] [--out file]`, `storyboard [--frames n] [--cols n]`,
 `export [--fps] [--width --height] [--grid on|off] [--name]`.
 
+## Save / load
+
+`canvas save [name] [--overwrite]`, `canvas load <name>`, `canvas saves`. Files: `scenes/saved/<name>.json`
+(plus `<name>.png` thumbnail when saved from the canvas). Names are slugged (`"Street v1"` → `street-v1`).
+
 ## HTTP
 
 | method + path | body / query | returns |
@@ -98,6 +103,9 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 | `GET /api/status` | | `{ agent, listen, waiting, queued, rev, tabs, scene, exports }` |
 | `POST /api/op` | `{ ops, label? }` | `{ ok, rev, results }` or `{ ok: false, error }` |
 | `POST /api/undo`, `/api/redo` | | |
+| `GET /api/saves` | | `{ saves: [{ name, savedAt, objects, keys, thumb }] }` |
+| `POST /api/save` | `{ name?, overwrite? }` | `{ name, path }`; 409 if it exists |
+| `POST /api/load` | `{ name }` | `{ name, objects, keys }` (undoable) |
 | `POST /api/rpc` | `{ method, params, timeout? }` (methods: camera, state, seek, play, pause, view, select, frame, snapshot, storyboard, export) | `{ ok, result }` |
 | `GET /api/prompt/next?wait=600` | long poll | `{ prompt }` or `{ prompt: null }` on timeout |
 | `POST /api/say` | `{ text, reply?, done? }` | |

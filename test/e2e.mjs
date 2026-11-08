@@ -127,6 +127,22 @@ try {
   ok(Math.hypot(after[0] - before[0], after[2] - before[2]) > 0.5, `click aims the camera at that point (${after.map((v) => v.toFixed(2))})`);
   ok(await page.evaluate(() => window.canvas.store.state.selection) === 'tower', 'plain click keeps the selection');
 
+  // save / load
+  ok(/saved "v1"/.test(cli('save', 'v1')), 'canvas save');
+  let dup = false; try { cli('save', 'v1'); } catch (e) { dup = /already exists/.test(e.stderr || e.message); }
+  ok(dup, 'saving over an existing name needs --overwrite');
+  cli('add', 'cone', '--name', 'extra');
+  cli('load', 'v1');
+  ok(!JSON.parse(cli('doc')).objects.some((o) => o.id === 'extra'), 'canvas load restores the saved scene');
+  cli('undo');
+  ok(JSON.parse(cli('doc')).objects.some((o) => o.id === 'extra'), 'undo reverts a load');
+  await page.keyboard.press('Control+s');
+  await page.fill('.saves-name', 'from ui');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.saves-item img.saves-thumb', { timeout: 5000 });
+  ok(/from-ui/.test(cli('saves')) && fs.existsSync(path.join(dir, 'saved', 'from-ui.png')), 'save from the canvas writes the scene and a thumbnail');
+  await page.keyboard.press('Escape');
+
   // renders
   const snap = cli('snapshot', '--t', '1');
   ok(fs.existsSync(snap) && fs.statSync(snap).size > 10000, 'snapshot writes a PNG');

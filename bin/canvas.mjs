@@ -61,6 +61,11 @@ Prompts from the canvas
   canvas say "text" [--reply <promptId>] [--working]   message shown in the canvas
   canvas listen on|off                      keep a Claude Code session waiting for canvas prompts (Stop hook)
 
+Save and load (scenes/saved/<name>.json)
+  canvas save [name] [--overwrite]           save a named copy of the scene (default name: scene-<date>-<time>)
+  canvas load <name>                         replace the scene with a save (undo brings the old one back)
+  canvas saves                               list saves, newest first
+
 Raw / batch
   canvas op '<json op or [ops]>'            e.g. canvas op '{"op":"add","type":"box","w":2}'
   canvas ops <file.json>                    apply an array of ops atomically
@@ -69,7 +74,7 @@ Raw / batch
 
 // ---------- helpers ----------
 // Flags that never take a value, so `say --working "text"` keeps "text" as the message.
-const BOOLEAN_FLAGS = new Set(['working', 'json', 'retime', 'keys', 'from-view', 'open', 'no-open', 'help']);
+const BOOLEAN_FLAGS = new Set(['working', 'json', 'retime', 'keys', 'from-view', 'open', 'no-open', 'help', 'overwrite']);
 
 function parseArgs(argv) {
   const pos = [], flags = {};
@@ -377,6 +382,19 @@ const commands = {
   async ops({ pos }) {
     const ops = JSON.parse(fs.readFileSync(pos[0], 'utf8'));
     out((await op(ops)).results);
+  },
+  async save({ pos, flags }) {
+    const r = await api('POST', '/api/save', { name: pos.join(' ') || undefined, overwrite: !!flags.overwrite });
+    out(`saved "${r.name}" → ${r.path}`);
+  },
+  async load({ pos }) {
+    if (!pos[0]) throw new Error('usage: canvas load <name>   (canvas saves lists them)');
+    const r = await api('POST', '/api/load', { name: pos.join(' ') });
+    out(`loaded "${r.name}": ${r.objects} objects, ${r.keys} camera keys (canvas undo to go back)`);
+  },
+  async saves() {
+    const r = await api('GET', '/api/saves');
+    out(r.saves.length ? r.saves.map((s) => `${s.name.padEnd(28)} ${s.savedAt.replace('T', ' ').slice(0, 16)}  ${s.objects} objects, ${s.keys} keys`).join('\n') : `no saves yet (${r.dir})`);
   },
   async undo() { out(await api('POST', '/api/undo')); },
   async redo() { out(await api('POST', '/api/redo')); },

@@ -7,6 +7,7 @@ import { mountTimeline } from './timeline.js';
 import { mountPrompt } from './prompt.js';
 import { createRenderer } from './render.js';
 import { h, button, segmented, panel, toast, kbd } from './ui/kit.js';
+import { mountSaves } from './saves.js';
 import controls from './controls/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -44,7 +45,7 @@ const SHORTCUTS = [
   ['Click', 'aim the camera at that point'], ['Ctrl Click', 'select an object (⌘ works too)'], ['W E R', 'move / rotate / scale'], ['F', 'frame selection (or all)'],
   ['Shift D', 'duplicate'], ['⌫', 'delete object or key'], ['Esc', 'deselect'],
   ['Space', 'play / pause'], ['K', 'key the current view at the playhead'], ['C', 'Free ↔ Shot camera'],
-  ['← →', 'step a frame (Shift: 1 s)'], ['Home', 'go to start'], ['/', 'prompt your agent'], ['⌘Z ⇧⌘Z', 'undo / redo'],
+  ['← →', 'step a frame (Shift: 1 s)'], ['Home', 'go to start'], ['/', 'prompt your agent'], ['⌘Z ⇧⌘Z', 'undo / redo'], ['⌘S', 'save / load scenes'],
 ];
 const helpPanel = panel({ title: 'Shortcuts', collapsible: false });
 helpPanel.classList.add('help-panel');
@@ -53,6 +54,7 @@ helpPanel.body.append(...SHORTCUTS.map(([k, v]) => h('div.help-row', {}, h('span
   h('div.cc-label.help-foot', {}, 'Orbit: drag · Pan: right-drag · Zoom: scroll'));
 const helpBtn = button({ icon: 'help', kind: 'ghost', title: 'Shortcuts (?)', onClick: () => { helpPanel.hidden = !helpPanel.hidden; } });
 $('corner').append(helpBtn);
+mountSaves($('corner'), { viewport });
 document.body.append(helpPanel);
 
 // ---------- controls dock (right) ----------
@@ -166,6 +168,7 @@ function connect() {
   on('say', (m) => store.emit('say', m));
   on('history', (h) => store.emit('history', h));
   on('reload', () => location.reload());
+  on('saves', (s) => store.emit('saves', s));
   on('rpc', async ({ id, method, params }) => {
     let result, error;
     try {

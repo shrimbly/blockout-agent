@@ -26,6 +26,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   const scenePath = path.resolve(scene || process.env.CANVAS_SCENE || path.join(ROOT, 'scenes', 'scene.json'));
   const workDir = path.join(path.dirname(scenePath), '.canvas');
   const exportsDir = path.resolve(process.env.CANVAS_EXPORTS || path.join(path.dirname(scenePath), 'exports'));
+  const savesDir = path.join(path.dirname(scenePath), 'saved');
   fs.mkdirSync(workDir, { recursive: true });
   fs.mkdirSync(exportsDir, { recursive: true });
   const inboxPath = path.join(workDir, 'inbox.jsonl');
@@ -82,6 +83,25 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
         reloadTimer = setTimeout(() => broadcast('reload', { at: Date.now() }), 250);
       });
     } catch {}
+  }
+
+  // ---------- named saves ----------
+  const saveName = (s) => {
+    const n = String(s || '').trim().toLowerCase().replace(/\.json$/, '').replace(/[^a-z0-9._-]+/g, '-').replace(/^[-.]+|[-.]+$/g, '');
+    if (!n) throw Object.assign(new Error('a save needs a name'), { status: 400 });
+    return n.slice(0, 80);
+  };
+  function listSaves() {
+    let files = [];
+    try { files = fs.readdirSync(savesDir).filter((f) => f.endsWith('.json')); } catch { return []; }
+    return files.map((f) => {
+      const file = path.join(savesDir, f), name = f.slice(0, -5);
+      let objects = 0, keys = 0, savedAt = null;
+      try { const d = JSON.parse(fs.readFileSync(file, 'utf8')); objects = d.objects?.length || 0; keys = d.timeline?.keys?.length || 0; savedAt = d.meta?.savedAt || null; } catch {}
+      const mtime = fs.statSync(file).mtimeMs;
+      const thumb = fs.existsSync(path.join(savesDir, `${name}.png`)) ? `/saved/${encodeURIComponent(name)}.png?v=${Math.round(mtime)}` : null;
+      return { name, path: file, savedAt: savedAt || new Date(mtime).toISOString(), objects, keys, thumb };
+    }).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
   }
 
   // ---------- event stream ----------
@@ -182,6 +202,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     ['/vendor/three/', path.join(ROOT, 'node_modules', 'three')],
     ['/core/', path.join(ROOT, 'core')],
     ['/exports/', exportsDir],
+    ['/saved/', savesDir],
     ['/', path.join(ROOT, 'app')],
   ];
 
@@ -220,6 +241,37 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       undo.push(doc); doc = redo.pop(); rev++; persist();
       broadcast('doc', { doc, rev, source: 'redo' });
       json(res, 200, { ok: true, rev });
+    },
+
+    // ----- named saves: scenes/saved/<name>.json (+ optional <name>.png thumbnail) -----
+    'GET /api/saves': (req, res) => json(res, 200, { ok: true, dir: savesDir, saves: listSaves() }),
+    'POST /api/save': async (req, res) => {
+      const { name, overwrite } = await readJson(req);
+      const n = saveName(name || `scene-${new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-')}`);
+      const file = path.join(savesDir, `${n}.json`);
+      if (fs.existsSync(file) && !overwrite) return json(res, 409, { ok: false, error: `a save called "${n}" already exists (overwrite it, or pick another name)`, exists: true, name: n });
+      fs.mkdirSync(savesDir, { recursive: true });
+      fs.writeFileSync(file, JSON.stringify({ ...doc, meta: { ...doc.meta, savedAs: n, savedAt: new Date().toISOString() } }, null, 2) + '\n');
+      broadcast('saves', { saves: listSaves() });
+      json(res, 200, { ok: true, name: n, path: file });
+    },
+    'POST /api/save/thumb': async (req, res, url) => {
+      const n = saveName(url.searchParams.get('name'));
+      if (!fs.existsSync(path.join(savesDir, `${n}.json`))) return json(res, 404, { ok: false, error: `no save "${n}"` });
+      fs.writeFileSync(path.join(savesDir, `${n}.png`), await readBody(req, 5 * 1024 * 1024));
+      broadcast('saves', { saves: listSaves() });
+      json(res, 200, { ok: true });
+    },
+    'POST /api/load': async (req, res) => {
+      const { name } = await readJson(req);
+      const n = saveName(name);
+      const file = path.join(savesDir, `${n}.json`);
+      let next;
+      try { next = migrate(JSON.parse(fs.readFileSync(file, 'utf8'))); }
+      catch (e) { return json(res, e.code === 'ENOENT' ? 404 : 400, { ok: false, error: e.code === 'ENOENT' ? `no save "${n}" (saves: ${listSaves().map((s) => s.name).join(', ') || 'none'})` : `could not read ${n}: ${e.message}` }); }
+      delete next.meta.savedAs; delete next.meta.savedAt;
+      commit(next, 'load', `load ${n}`); // undoable like any other change
+      json(res, 200, { ok: true, name: n, rev, objects: next.objects.length, keys: next.timeline.keys.length });
     },
 
     'GET /api/events': (req, res, url) => {
@@ -335,7 +387,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       }
       res.writeHead(404); res.end('not found');
     } catch (e) {
-      if (!res.headersSent) json(res, 500, { ok: false, error: e.message });
+      if (!res.headersSent) json(res, e.status || 500, { ok: false, error: e.message });
     }
   });
 

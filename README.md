@@ -73,6 +73,13 @@ camera's speed), **Shot speed** remaps time across the whole shot for speed ramp
 **Export:** the Export button (or `canvas export`) renders every frame through the shot camera at
 the scene size and fps and encodes an H.264 MP4 in the browser. Files land in `scenes/exports/`.
 
+## Saving and loading
+
+The scene autosaves to `scenes/scene.json` on every change. To keep versions, press **⌘S** (or the
+folder button, top right), name it and press Enter. That writes `scenes/saved/<name>.json` with a
+thumbnail of the shot. **Load** in the same menu replaces the scene with a save, and ⌘Z undoes the
+load. Agents use `canvas save <name>`, `canvas load <name>` and `canvas saves`.
+
 ## For agents
 
 - [AGENTS.md](AGENTS.md) — project instructions (Codex, and Claude via CLAUDE.md)

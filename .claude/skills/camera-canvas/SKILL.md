@@ -74,6 +74,13 @@ canvas key --t 2 --from-view          # key whatever the user is looking at righ
 - Keep the target moving smoothly too; a still target with a moving camera reads as an orbit.
 - Check the move with `canvas storyboard --frames 8` before exporting.
 
+## 4b. Save and load versions
+
+The scene autosaves continuously. Before a big rework (or when the user says "save this"), keep a
+named version: `canvas save street-v1`. `canvas saves` lists versions; `canvas load street-v1`
+restores one (undoable with `canvas undo`). Saving over an existing name needs `--overwrite`;
+prefer a new name such as `street-v2`.
+
 ## 5. Export
 
 ```bash
