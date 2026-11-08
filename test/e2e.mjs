@@ -160,6 +160,12 @@ try {
   cli('undo');
   ok(JSON.parse(cli('doc')).objects.length > 0, 'undo brings the old scene back after New scene');
 
+  // new chat clears the thread
+  ok(await page.$$eval('.chat-msg', (els) => els.length) > 0, 'thread has messages before a new chat');
+  await page.click('.chat-new');
+  await page.waitForFunction(() => !document.querySelector('.chat-msg') && document.querySelector('.chat-empty'));
+  ok(true, 'new chat empties the thread and shows the intro');
+
   // chat toggle + shot settings
   const chatOpen = await page.isVisible('.chat');
   await page.click('.chat-toggle');

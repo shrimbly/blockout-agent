@@ -13,7 +13,9 @@ export function mountPrompt(root, { viewport, corner }) {
   const dot = h('span.cc-dot');
   const statusText = h('span.chat-status-text');
   const selEl = h('span.cc-mono.chat-sel');
-  const head = h('div.chat-head', {}, dot, statusText, h('span.cc-spacer'), selEl);
+  const newBtn = button({ icon: 'compose', kind: 'ghost', title: 'New chat: clear this conversation', onClick: () => newChat() });
+  newBtn.classList.add('chat-new');
+  const head = h('div.chat-head', {}, dot, statusText, h('span.cc-spacer'), selEl, newBtn);
 
   // ---------- thread ----------
   const thread = h('div.chat-thread', { role: 'log', 'aria-live': 'polite' });
@@ -157,7 +159,7 @@ export function mountPrompt(root, { viewport, corner }) {
   store.on('prompt', (p) => { prompts.set(p.id, p); renderPrompt(p); });
   store.on('say', (m) => renderMessage(m));
   store.on('history', ({ prompts: ps = [], messages: ms = [] }) => {
-    thread.replaceChildren(); items.clear();
+    thread.replaceChildren(); items.clear(); prompts.clear();
     for (const p of ps) prompts.set(p.id, p);
     const all = [...ps.map((p) => ({ at: p.at, p })), ...ms.map((m) => ({ at: m.at, m }))].sort((a, b) => a.at - b.at).slice(-60);
     if (!all.length) thread.append(empty);
@@ -165,6 +167,14 @@ export function mountPrompt(root, { viewport, corner }) {
     unread = false; refreshBadge();
     scrollToEnd();
   });
+
+  async function newChat() {
+    try {
+      const r = await fetch('/api/chat/new', { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      input.focus();
+    } catch (e) { console.warn('new chat failed', e); }
+  }
 
   function refresh() {
     const { agent, working, listen } = store.state;

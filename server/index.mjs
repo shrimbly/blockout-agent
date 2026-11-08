@@ -374,6 +374,14 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       json(res, 200, { ok: true });
     },
 
+    // New chat: archive the conversation and start an empty thread. Prompts still queued or being worked on stay.
+    'POST /api/chat/new': async (req, res) => {
+      try { if (fs.existsSync(logPath) && fs.statSync(logPath).size) fs.renameSync(logPath, path.join(workDir, `log-${Date.now()}.jsonl`)); } catch {}
+      prompts = prompts.filter((p) => p.status === 'pending' || p.status === 'taken');
+      savePrompts();
+      broadcast('history', { prompts: prompts.slice(-30), messages: [] });
+      json(res, 200, { ok: true, kept: prompts.length });
+    },
     // ----- messages: agent -> canvas -----
     'POST /api/say': async (req, res) => {
       const { text, reply: replyTo, kind = 'info', done = true } = await readJson(req);

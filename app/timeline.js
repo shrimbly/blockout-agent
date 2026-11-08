@@ -164,29 +164,33 @@ export function mountTimeline(root, { viewport, exporter }) {
       ctx.stroke(); ctx.globalAlpha = 1;
     }
 
-    // segments: tiny ease glyph between keys
+    // selected segment only: a soft "speed hump" showing how fast the camera moves from the selected key
+    // to the next. Flat band = constant speed, a hill = speeds up then slows. Dotted = hold.
     const ks = keys().map((k) => (drag?.kind === 'key' && drag.id === k.id ? { ...k, t: drag.t } : k)).sort((a, b) => a.t - b.t);
-    for (let i = 0; i < ks.length - 1; i++) {
-      const a = ks[i], b = ks[i + 1];
+    const si = ks.findIndex((k) => k.id === store.state.key);
+    if (si >= 0 && si < ks.length - 1) {
+      const a = ks[si], b = ks[si + 1];
       const x0 = xOf(a.t), x1 = xOf(b.t);
-      if (x1 - x0 < 14) continue;
       const e = resolveEase(a.ease);
-      const top = mid - 11, bot = mid + 11;
-      ctx.strokeStyle = a.id === store.state.key ? accent : dim;
-      ctx.globalAlpha = a.id === store.state.key ? 0.9 : 0.55;
-      ctx.beginPath();
-      const n = Math.max(8, Math.round((x1 - x0) / 4));
-      for (let j = 0; j <= n; j++) {
-        const u = j / n;
-        const y = bot - bezier(e, u) * (bot - top);
-        j ? ctx.lineTo(x0 + u * (x1 - x0), y) : ctx.moveTo(x0, y);
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      if (x1 - x0 > 70) {
-        ctx.fillStyle = dim; ctx.textBaseline = 'bottom';
-        ctx.fillText(easeName(a.ease), x0 + 8, H - 2);
-        ctx.textBaseline = 'top';
+      if (e === 'hold') {
+        ctx.strokeStyle = accent; ctx.globalAlpha = 0.8; ctx.setLineDash([2, 3]);
+        ctx.beginPath(); ctx.moveTo(x0, mid + 0.5); ctx.lineTo(x1, mid + 0.5); ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      } else if (x1 - x0 >= 6) {
+        const room = mid - 16, k = Math.min(10, room / 2.2); // linear sits at k px; peaks clamp to the room above the line
+        const n = Math.max(16, Math.round((x1 - x0) / 3));
+        const pts = [];
+        for (let j = 0; j <= n; j++) {
+          const u = j / n, v = bezierSpeed(e, u, 0.004);
+          pts.push([x0 + u * (x1 - x0), mid - Math.max(-6, Math.min(room, v * k))]);
+        }
+        ctx.beginPath(); ctx.moveTo(x0, mid);
+        for (const [x, y] of pts) ctx.lineTo(x, y);
+        ctx.lineTo(x1, mid); ctx.closePath();
+        ctx.fillStyle = accent; ctx.globalAlpha = 0.16; ctx.fill();
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = accent; ctx.beginPath();
+        pts.forEach(([x, y], j) => (j ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.stroke(); ctx.globalAlpha = 1;
       }
     }
 
