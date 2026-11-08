@@ -42,10 +42,17 @@ export function mountTimeline(root, { viewport, exporter }) {
   const easeGlyph = h('span.tl-glyph');
   const easeName_ = h('span');
   const easeBtn = h('button.cc-field.tl-ease', { type: 'button', onClick: () => curve.toggle(undefined, 'segment') }, easeGlyph, easeName_, icon('chevronDown'));
-  const lensNum = number({ step: 1, min: 8, max: 300, precision: 0, title: 'Lens (mm, full-frame equivalent)', width: 34, onChange: (v) => updateKey({ fov: +lensToFov(v).toFixed(3) }) });
+  // Lens: sets the selected key's focal length and the free camera's, so the free view looks through the
+  // same lens you are keying. With no key selected it sets just the free camera.
+  const lensNum = number({ step: 1, min: 8, max: 300, precision: 0, title: 'Lens (mm, full-frame equivalent): the selected key and the free view', width: 34, onInput: (v) => viewport.setFreeFov(lensToFov(v)), onChange: (v) => {
+    const fov = +lensToFov(v).toFixed(3);
+    viewport.setFreeFov(fov);
+    if (store.state.key) updateKey({ fov });
+  } });
+  const lensField = affix(lensNum, 'mm');
   const toViewBtn = button({ icon: 'aim', title: 'Set this key to the current view', kind: 'ghost', onClick: () => { const p = viewport.getPose(); updateKey({ position: p.position, target: p.target, fov: p.fov }); } });
   const delKeyBtn = button({ icon: 'trash', title: 'Delete key', kind: 'ghost', onClick: () => deleteKey() });
-  const keyGroup = h('div.tl-key', {}, h('span.tl-diamond'), keyTime, easeBtn, affix(lensNum, 'mm'), toViewBtn, delKeyBtn);
+  const keyGroup = h('div.tl-key', {}, h('span.tl-diamond'), keyTime, easeBtn, toViewBtn, delKeyBtn);
 
   // output: shot settings chip + export
   const shotDur = h('span'), shotFps = h('span');
@@ -54,7 +61,7 @@ export function mountTimeline(root, { viewport, exporter }) {
   const exportBtn = button({ icon: 'film', label: 'Export', kind: 'primary', title: 'Render the blockout video (mp4)', onClick: () => exporter.exportVideo().catch((e) => toast(e.message, { kind: 'error' })) });
 
   const bar = h('div.tl-bar',
-    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, keyGroup,
+    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, lensField, keyGroup,
     h('span.cc-spacer'), shotBtn, exportBtn);
 
   // ---------- track ----------
@@ -247,8 +254,16 @@ export function mountTimeline(root, { viewport, exporter }) {
       easeName_.textContent = last ? 'last key' : easeName(k.ease);
       easeBtn.disabled = last;
       easeBtn.title = last ? 'Last key: no segment after it' : 'Easing from this key to the next (opens the curve editor)';
-      lensNum.set(Math.round(fovToLens(k.fov)));
+      // selecting a key (or the agent changing its lens) puts the free view on that lens too
+      changed(lensField, [k.id, k.fov], () => viewport.setFreeFov(k.fov));
     }
+    const shotView = store.state.view === 'shot';
+    const lensFov = k ? k.fov : shotView ? (sampleCamera(store.doc.timeline, store.state.time)?.fov ?? viewport.freeCam.fov) : viewport.freeCam.fov;
+    lensNum.set(Math.round(fovToLens(lensFov)));
+    const lensOff = shotView && !k;
+    lensField.classList.toggle('is-disabled', lensOff);
+    lensNum.disabled = lensOff;
+    lensField.title = lensOff ? 'Select a key to change its lens' : k ? 'Lens of the selected key; the free view uses it too' : 'Lens of the free view; new keys get it';
     exportBtn.disabled = store.state.exporting;
     draw();
     curve.refresh();

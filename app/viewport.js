@@ -105,9 +105,10 @@ export class Viewport {
     try { saved = JSON.parse(sessionStorage.getItem('cc-freecam') || 'null'); } catch {}
     this.freeCam.position.fromArray(saved?.p || [11, 7.5, 13]);
     this.freeOrbit.target.fromArray(saved?.t || [0, 1, 0]);
+    if (saved?.f) { this.freeCam.fov = saved.f; this.freeCam.updateProjectionMatrix(); }
     this.freeOrbit.update();
     addEventListener('beforeunload', () => {
-      try { sessionStorage.setItem('cc-freecam', JSON.stringify({ p: this.freeCam.position.toArray(), t: this.freeOrbit.target.toArray() })); } catch {}
+      try { sessionStorage.setItem('cc-freecam', JSON.stringify({ p: this.freeCam.position.toArray(), t: this.freeOrbit.target.toArray(), f: this.freeCam.fov })); } catch {}
     });
   }
 
@@ -307,6 +308,12 @@ export class Viewport {
     if (cam.fov !== s.fov) { cam.fov = s.fov; cam.updateProjectionMatrix(); }
     if (orbit) orbit.target.fromArray(s.target);
     return s;
+  }
+
+  /** Field of view of the free (work) camera, so it can look through the same lens as the shot. */
+  setFreeFov(fov) {
+    if (!(fov > 0) || Math.abs(this.freeCam.fov - fov) < 1e-3) return;
+    this.freeCam.fov = fov; this.freeCam.updateProjectionMatrix();
   }
 
   /** Current pose of the camera the user is looking through. */

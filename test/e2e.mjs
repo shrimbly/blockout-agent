@@ -174,6 +174,21 @@ try {
   cli('undo');
   ok(JSON.parse(cli('doc')).objects.length > 0, 'undo brings the old scene back after New scene');
 
+  // the lens field drives the free view camera too
+  cli('view', 'free');
+  await page.evaluate(() => window.canvas.store.set({ key: null }));
+  await page.waitForTimeout(100);
+  const lensIn = await page.$('.tl-bar .cc-affix input');
+  await lensIn.click(); await lensIn.fill('85'); await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  const freeFov = await page.evaluate(() => window.canvas.viewport.freeCam.fov);
+  ok(Math.abs(freeFov - 15.9) < 0.3, `lens 85 mm sets the free view to ~15.9° (got ${freeFov.toFixed(2)})`);
+  const kid = JSON.parse(cli('doc')).timeline.keys[0].id;
+  await page.evaluate((id) => window.canvas.store.set({ key: id }), kid);
+  await page.waitForTimeout(200);
+  const keyFov = JSON.parse(cli('doc')).timeline.keys[0].fov;
+  ok(Math.abs((await page.evaluate(() => window.canvas.viewport.freeCam.fov)) - keyFov) < 0.01, 'selecting a key puts the free view on its lens');
+
   // the play button pauses while playing (its icon must not be rebuilt every frame)
   await page.click('.tl-bar button[title^="Play"]').catch(async () => page.keyboard.press(' '));
   await page.waitForTimeout(300);
