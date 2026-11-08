@@ -9,11 +9,11 @@ import { store } from './store.js';
 const OPEN_KEY = 'cc-chat-open';
 
 export function mountPrompt(root, { viewport, corner }) {
-  // ---------- status line (under the input box) ----------
+  // ---------- header: agent status, and the selection sent with your message ----------
   const dot = h('span.cc-dot');
   const statusText = h('span.chat-status-text');
   const selEl = h('span.cc-mono.chat-sel');
-  const head = h('div.chat-status', {}, dot, statusText, h('span.cc-spacer'), selEl);
+  const head = h('div.chat-head', {}, dot, statusText, h('span.cc-spacer'), selEl);
 
   // ---------- thread ----------
   const thread = h('div.chat-thread', { role: 'log', 'aria-live': 'polite' });
@@ -26,9 +26,9 @@ export function mountPrompt(root, { viewport, corner }) {
   // ---------- composer ----------
   const input = h('textarea.chat-input', { rows: 1, placeholder: 'Ask your agent…', spellcheck: false, 'aria-label': 'Message your agent' });
   const send = h('button.cc-btn.cc-btn--primary.cc-btn--icon.chat-send', { type: 'button', title: 'Send (Enter) · new line (Shift+Enter)', disabled: true }, icon('send'));
-  const composer = h('div.chat-composer', {}, h('div.chat-input-row', {}, input, send), head);
+  const composer = h('div.chat-composer', {}, h('div.chat-input-row', {}, input, send));
 
-  const panel = h('section.cc-panel.chat', { 'aria-label': 'Chat with your agent' }, thread, composer);
+  const panel = h('section.cc-panel.chat', { 'aria-label': 'Chat with your agent' }, head, thread, composer);
   root.append(panel);
 
   // one sidebar toggle in the top-right menu: outline when closed, filled when open.
