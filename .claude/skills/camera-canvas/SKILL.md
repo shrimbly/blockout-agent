@@ -76,7 +76,7 @@ canvas key --t 2 --from-view          # key whatever the user is looking at righ
 
 ## 4b. Save and load versions
 
-The scene autosaves continuously. Before a big rework (or when the user says "save this"), keep a
+The scene autosaves continuously, and once it has been saved under a name every change also autosaves into that named version (`meta.name`). Before a big rework (or when the user says "save this"), keep a
 named version: `canvas save street-v1`. `canvas saves` lists versions; `canvas load street-v1`
 restores one (undoable with `canvas undo`). `canvas new` starts an empty scene (also undoable; the Scenes menu has a New button). Saving over an existing name needs `--overwrite`;
 prefer a new name such as `street-v2`.

@@ -25,18 +25,24 @@ body:has(#stage.is-shot) { background: #121211; }
 .scenes-btn svg:last-child { width: 10px; height: 10px; color: var(--cc-text-dim); }
 .help-panel { position: fixed; top: 48px; right: 12px; width: 280px; z-index: 30; }
 .help-panel[hidden] { display: none; }
-.saves-panel { position: fixed; top: 48px; right: 12px; width: 300px; max-height: calc(100vh - 190px); display: flex; flex-direction: column; z-index: 30; }
-.saves-panel[hidden] { display: none; }
-.saves-panel .cc-panel__body { min-height: 0; }
-.saves-name { flex: 1; }
-.saves-panel .cc-row > .cc-btn { flex: none; }
-.saves-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; max-height: 50vh; margin: 0 -4px; }
-.saves-item { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: var(--cc-radius); }
-.saves-item:hover { background: var(--cc-surface-sunk); }
-.saves-thumb { width: 64px; height: 36px; flex: none; border-radius: 4px; object-fit: cover; background: var(--cc-surface-sunk); border: 1px solid var(--cc-line); }
-.saves-info { flex: 1; min-width: 0; }
-.saves-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-.saves-empty, .saves-hint { white-space: normal; padding: 2px 0; }
+.scenes-chev { display: inline-flex; }
+.scenes-menu { position: fixed; top: 48px; right: 12px; width: 240px; max-height: calc(100vh - 190px); display: flex; flex-direction: column; gap: 1px; padding: 4px; z-index: 30; }
+.scenes-menu[hidden], .scenes-saverow[hidden], .scenes-item[hidden] { display: none; }
+.scenes-item { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; flex: none; padding: 0 6px; border: 0; border-radius: var(--cc-radius); background: transparent; text-align: left; cursor: pointer; }
+.scenes-item:hover, .scenes-item:focus-visible { background: var(--cc-surface-sunk); outline: none; }
+.scenes-item > svg { width: 14px; height: 14px; flex: none; color: var(--cc-text-dim); }
+.scenes-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scenes-label.is-current { font-weight: 600; }
+.scenes-kbd, .scenes-age { color: var(--cc-text-faint); font-size: var(--cc-size-sm); font-family: var(--cc-mono); white-space: nowrap; }
+.scenes-tick { display: inline-flex; } .scenes-tick svg { width: 12px; height: 12px; }
+.scenes-saverow { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 2px 0 6px; flex: none; }
+.scenes-saverow > svg { width: 14px; height: 14px; flex: none; color: var(--cc-text-dim); }
+.scenes-field { flex: 1; min-width: 0; }
+.scenes-field:focus { outline: none; border-color: var(--cc-line-strong); }
+.scenes-sep { height: 1px; background: var(--cc-line); margin: 3px 2px; flex: none; }
+.scenes-list { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; min-height: 0; }
+.scenes-thumb { width: 32px; height: 18px; flex: none; border-radius: 3px; object-fit: cover; background: var(--cc-surface-sunk); border: 1px solid var(--cc-line); box-sizing: border-box; }
+.scenes-empty { color: var(--cc-text-faint); padding: 6px; }
 .help-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .help-key { display: inline-flex; gap: 3px; width: 84px; flex: none; }
 .help-text { color: var(--cc-text-dim); }
@@ -98,7 +104,7 @@ body:has(#stage.is-shot) { background: #121211; }
 .chat-peek-who { display: flex; align-items: center; gap: 6px; font-size: var(--cc-size-sm); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--cc-accent); }
 .chat-peek-text { font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .chat-send:disabled { opacity: 1; background: var(--cc-surface-sunk); color: var(--cc-text-faint); }
-body.chat-open #corner, body.chat-open #dock, body.chat-open .help-panel, body.chat-open .saves-panel { right: 364px; }
+body.chat-open #corner, body.chat-open #dock, body.chat-open .help-panel, body.chat-open .scenes-menu { right: 364px; }
 
 /* bottom: timeline */
 #timeline { position: fixed; left: 12px; right: 12px; bottom: 12px; height: 100px; z-index: 10; display: flex; flex-direction: column; padding: 6px 8px 6px; gap: 4px; }

@@ -49,7 +49,23 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     fs.mkdirSync(path.dirname(scenePath), { recursive: true });
     fs.writeFileSync(scenePath + '.tmp', text);
     fs.renameSync(scenePath + '.tmp', scenePath);
+    scheduleAutosave();
   };
+  // Autosave into the named version you are on (scenes/saved/<meta.name>.json), so a saved version never goes stale.
+  let autosaveTimer = null;
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(() => {
+      const n = doc.meta?.name;
+      if (!n || n === 'untitled' || !/^[a-z0-9._-]+$/.test(n)) return;
+      const file = path.join(savesDir, `${n}.json`);
+      if (!fs.existsSync(file)) return; // only versions that were saved once
+      try {
+        fs.writeFileSync(file, JSON.stringify({ ...doc, meta: { ...doc.meta, savedAs: n, savedAt: new Date().toISOString() } }, null, 2) + '\n');
+        broadcast('saves', { saves: listSaves() });
+      } catch (e) { console.error(`[canvas] autosave to ${file} failed: ${e.message}`); }
+    }, 800);
+  }
   persist();
 
   function commit(next, source, label) {

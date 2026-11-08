@@ -38,5 +38,6 @@ export const ICONS = {
   clock: s('<circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1.5"/>'),
   minus: s('<path d="M4 8h8"/>'),
   plus: s('<path d="M4 8h8M8 4v8"/>'),
+  save: s('<path d="M3.5 2.5h7l2 2v9h-9z"/><path d="M5.5 2.5v3h4v-3M5.5 13.5v-4h5v4"/>'),
   aim: s('<path d="M2 5.5V2h3.5M10.5 2H14v3.5M14 10.5V14h-3.5M5.5 14H2v-3.5"/><circle cx="8" cy="8" r="1.5"/>'),
 };
