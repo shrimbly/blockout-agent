@@ -174,7 +174,8 @@ const keyRef = (s) => (/^\d+$/.test(s) ? { index: Number(s) } : { id: s });
 
 function formatPrompt(p) {
   const c = p.context || {};
-  const lines = [`[canvas prompt ${p.id}] ${p.text}`];
+  const lines = [`[canvas prompt ${p.id}] ${p.text || '(no text, see the attached images)'}`];
+  if (p.images?.length) lines.push(`images attached (open each with your Read tool): ${p.images.map((i) => i.path).join(' | ')}`);
   if (c.selection?.length) lines.push(`selected: ${c.selection.join(' | ')}`);
   if (c.time != null) lines.push(`playhead: ${Number(c.time).toFixed(2)}s of ${c.duration}s, view: ${c.view}${c.key ? `, key: ${c.key}` : ''}`);
   if (c.camera) lines.push(`camera: pos=${c.camera.position.map((v) => +v.toFixed(2)).join(',')} target=${c.camera.target.map((v) => +v.toFixed(2)).join(',')} fov=${+c.camera.fov.toFixed(1)}`);

@@ -28,7 +28,10 @@ export function mountPrompt(root, { viewport, corner }) {
   // ---------- composer ----------
   const input = h('textarea.chat-input', { rows: 1, placeholder: 'Ask your agent…', spellcheck: false, 'aria-label': 'Message your agent' });
   const send = h('button.cc-btn.cc-btn--primary.cc-btn--icon.chat-send', { type: 'button', title: 'Send (Enter) · new line (Shift+Enter)', disabled: true }, icon('send'));
-  const composer = h('div.chat-composer', {}, h('div.chat-input-row', {}, input, send));
+  const fileInput = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', multiple: true, hidden: true });
+  const attachBtn = h('button.cc-btn.cc-btn--ghost.cc-btn--icon.chat-attach', { type: 'button', title: 'Add images (or paste / drop them)' }, icon('image'));
+  const tray = h('div.chat-tray', { hidden: true });
+  const composer = h('div.chat-composer', {}, h('div.chat-input-row', {}, h('div.chat-input-col', {}, tray, input), attachBtn, send), fileInput);
 
   const panel = h('section.cc-panel.chat', { 'aria-label': 'Chat with your agent' }, head, thread, composer);
   root.append(panel);
@@ -75,15 +78,74 @@ export function mountPrompt(root, { viewport, corner }) {
     };
   }
 
+  // ---------- image attachments: uploaded as soon as they are added, sent with the next message ----------
+  let attachments = []; // { id, preview, file?, pending, error? }
+  const MAX_SIDE = 2000;
+  async function toDataUrl(blob) {
+    const url = URL.createObjectURL(blob);
+    try {
+      const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+      const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+      if (scale === 1 && /^image\/(png|jpeg|webp|gif)$/.test(blob.type)) {
+        return await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
+      }
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * scale); c.height = Math.round(img.naturalHeight * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      return c.toDataURL(blob.type === 'image/jpeg' ? 'image/jpeg' : 'image/png', 0.9);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function addImages(files) {
+    for (const f of [...files].filter((x) => x.type?.startsWith('image/')).slice(0, 8 - attachments.length)) {
+      const a = { id: Math.random().toString(36).slice(2), preview: URL.createObjectURL(f), pending: true };
+      attachments.push(a); renderTray();
+      try {
+        const res = await store.post('/api/chat/image', { data: await toDataUrl(f), name: f.name || 'pasted' });
+        if (!res.ok) throw new Error(res.error || 'upload failed');
+        a.file = res.file;
+      } catch (e) { a.error = true; console.warn('image upload failed', e); }
+      a.pending = false; renderTray();
+    }
+  }
+  function removeAttachment(id) {
+    const a = attachments.find((x) => x.id === id);
+    if (a) URL.revokeObjectURL(a.preview);
+    attachments = attachments.filter((x) => x.id !== id); renderTray();
+  }
+  function renderTray() {
+    tray.hidden = !attachments.length;
+    tray.replaceChildren(...attachments.map((a) => h(`div.chat-thumb${a.pending ? '.is-pending' : ''}${a.error ? '.is-error' : ''}`, { title: a.error ? 'Upload failed' : '' },
+      h('img', { src: a.preview, alt: '' }),
+      a.pending ? h('span.cc-spin') : null,
+      h('button.chat-thumb-x', { type: 'button', title: 'Remove', 'aria-label': 'Remove image', onClick: () => removeAttachment(a.id) }, icon('close')))));
+    autosize();
+  }
+  attachBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { addImages(fileInput.files); fileInput.value = ''; input.focus(); });
+  input.addEventListener('paste', (e) => {
+    const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith('image/'));
+    if (files.length) { e.preventDefault(); addImages(files); }
+  });
+  panel.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) { e.preventDefault(); panel.classList.add('is-drop'); } });
+  panel.addEventListener('dragleave', (e) => { if (!panel.contains(e.relatedTarget)) panel.classList.remove('is-drop'); });
+  panel.addEventListener('drop', (e) => { if (!e.dataTransfer?.files?.length) return; e.preventDefault(); panel.classList.remove('is-drop'); addImages(e.dataTransfer.files); input.focus(); });
+
+  const readyImages = () => attachments.filter((a) => a.file);
   async function submit() {
     const text = input.value.trim();
-    if (!text) return;
-    input.value = '';
-    autosize();
-    const res = await store.post('/api/prompt', { text, context: context() });
-    if (!res.ok) { input.value = text; autosize(); }
+    if (attachments.some((a) => a.pending)) return;
+    const imgs = readyImages();
+    if (!text && !imgs.length) return;
+    const sent = attachments;
+    input.value = ''; attachments = []; renderTray();
+    const res = await store.post('/api/prompt', { text, images: imgs.map((a) => a.file), context: context() });
+    if (!res.ok) { input.value = text; attachments = sent; renderTray(); return; }
+    for (const a of sent) URL.revokeObjectURL(a.preview);
   }
-  function autosize() { input.style.height = 'auto'; input.style.height = `${Math.min(140, input.scrollHeight)}px`; send.disabled = !input.value.trim(); }
+  function autosize() {
+    input.style.height = 'auto'; input.style.height = `${Math.min(140, input.scrollHeight)}px`;
+    send.disabled = attachments.some((a) => a.pending) || (!input.value.trim() && !readyImages().length);
+  }
   input.addEventListener('input', autosize);
   input.addEventListener('keydown', (e) => {
     e.stopPropagation();
@@ -123,7 +185,11 @@ export function mountPrompt(root, { viewport, corner }) {
     el.dataset.status = p.status;
     const st = statusEl(p);
     el.title = [p.at ? time(p.at) : '', ctxLine(p.context)].filter(Boolean).join(' · ');
-    el.replaceChildren(h('div.chat-bubble', {}, p.text), ...(st ? [h('div.chat-foot', {}, st)] : []));
+    const imgs = (p.images || []).map((im) => h('a.chat-img', { href: im.url, target: '_blank', rel: 'noopener', title: 'Open image' }, h('img', { src: im.url, alt: '', loading: 'lazy' })));
+    el.replaceChildren(
+      ...(imgs.length ? [h('div.chat-imgs', {}, ...imgs)] : []),
+      ...(p.text ? [h('div.chat-bubble', {}, p.text)] : []),
+      ...(st ? [h('div.chat-foot', {}, st)] : []));
     empty.remove();
     if (stick) scrollToEnd();
   }

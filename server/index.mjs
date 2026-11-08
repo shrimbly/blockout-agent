@@ -18,7 +18,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.md': 'text/markdown; charset=utf-8',
 };
 
@@ -27,6 +27,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   const workDir = path.join(path.dirname(scenePath), '.canvas');
   const exportsDir = path.resolve(process.env.CANVAS_EXPORTS || path.join(path.dirname(scenePath), 'exports'));
   const savesDir = path.join(path.dirname(scenePath), 'saved');
+  const uploadsDir = path.join(workDir, 'uploads');
   fs.mkdirSync(workDir, { recursive: true });
   fs.mkdirSync(exportsDir, { recursive: true });
   const inboxPath = path.join(workDir, 'inbox.jsonl');
@@ -219,6 +220,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     ['/core/', path.join(ROOT, 'core')],
     ['/exports/', exportsDir],
     ['/saved/', savesDir],
+    ['/uploads/', uploadsDir],
     ['/', path.join(ROOT, 'app')],
   ];
 
@@ -333,10 +335,28 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     },
 
     // ----- prompts: canvas -> agent -----
+    // Images for chat prompts: saved under .canvas/uploads so the agent can open them by path.
+    'POST /api/chat/image': async (req, res) => {
+      const { data, name } = await readJson(req);
+      const m = /^data:image\/(png|jpeg|webp|gif);base64,(.+)$/.exec(String(data || ''));
+      if (!m) return json(res, 400, { ok: false, error: 'expected a png, jpeg, webp or gif data URL' });
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+      const stem = String(name || 'image').replace(/\.[a-z0-9]+$/i, '').replace(/[^a-z0-9_-]+/gi, '-').slice(0, 40) || 'image';
+      const file = `${Date.now().toString(36)}-${stem}.${ext}`;
+      fs.writeFileSync(path.join(uploadsDir, file), Buffer.from(m[2], 'base64'));
+      json(res, 200, { ok: true, file, url: `/uploads/${file}`, path: path.join(uploadsDir, file) });
+    },
     'POST /api/prompt': async (req, res) => {
-      const { text, context } = await readJson(req);
-      if (!text || !String(text).trim()) return json(res, 400, { ok: false, error: 'empty prompt' });
-      const p = { id: `p${Date.now().toString(36)}`, text: String(text).trim(), context: context || {}, status: 'pending', at: Date.now() };
+      const { text, context, images } = await readJson(req);
+      const imgs = (Array.isArray(images) ? images : [])
+        .map((f) => path.basename(String(f?.file || f)))
+        .filter((f) => fs.existsSync(path.join(uploadsDir, f)))
+        .slice(0, 8)
+        .map((f) => ({ file: f, url: `/uploads/${f}`, path: path.join(uploadsDir, f) }));
+      if ((!text || !String(text).trim()) && !imgs.length) return json(res, 400, { ok: false, error: 'empty prompt' });
+      const p = { id: `p${Date.now().toString(36)}`, text: String(text || '').trim(), context: context || {}, status: 'pending', at: Date.now() };
+      if (imgs.length) p.images = imgs;
       prompts.push(p); if (prompts.length > 500) prompts = prompts.slice(-500);
       savePrompts();
       broadcast('prompt', p);

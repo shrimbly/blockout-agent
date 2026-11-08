@@ -116,6 +116,20 @@ try {
   await page.waitForTimeout(300);
   ok(await page.$$eval('.chat-msg[data-status="taken"]', (els) => els.length) === 0, 'calling wait again closes prompts left without a reply');
 
+  // images attached to a chat message reach the agent as file paths
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==', 'base64');
+  await page.setInputFiles('.chat-composer input[type=file]', { name: 'ref.png', mimeType: 'image/png', buffer: png });
+  await page.waitForSelector('.chat-thumb:not(.is-pending)');
+  ok(!(await page.$eval('.chat-send', (b) => b.disabled)), 'an attached image alone enables send');
+  await page.fill('.chat-input', 'match this reference');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.chat-msg--user .chat-img img');
+  ok(await page.$eval('.chat-msg--user:last-child .chat-img img', (i) => i.complete && i.naturalWidth === 2), 'the sent image shows in the thread');
+  const gotImg = await cliAsync('wait', '--timeout', '5');
+  const imgPath = (gotImg.match(/images attached[^:]*: (\S+)/) || [])[1];
+  ok(imgPath && fs.existsSync(imgPath), 'canvas wait lists the image as a file the agent can open');
+  cli('say', '--reply', gotImg.match(/\[canvas prompt (\w+)\]/)[1], 'Looked at it');
+
   // single click aims the camera at the clicked point
   cli('view', 'free');
   await page.waitForTimeout(200);

@@ -107,7 +107,9 @@ notes that should not close it, and **always finish with a final `say`** (withou
 otherwise the user sees "no reply yet". Then call `canvas wait` again straight away; a prompt is
 only delivered to an agent that is waiting. Calling `wait` also marks any prompt you already took
 as done and turns listen mode on. "this", "it" or "here" in a prompt refer to the `selected:` object and
-the `playhead:` time printed with it.
+the `playhead:` time printed with it. When the user attaches images (references, sketches,
+screenshots), the prompt has an `images attached:` line with their file paths: open each one with
+your Read tool before acting on the prompt.
 
 How to listen depends on the agent:
 - **Claude Code**: run `canvas listen on`. The repo's Stop hook (`.claude/settings.json`) then keeps
