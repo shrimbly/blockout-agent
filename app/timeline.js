@@ -5,7 +5,6 @@ import { EASES, bezier, bezierSpeed, resolveEase, easeName, sampleCamera, fovToL
 import { store } from './store.js';
 
 const PAD = 14;
-const FPS_PRESETS = [24, 25, 30, 60];
 const SIZES = [[1280, 720], [1920, 1080], [3840, 2160], [1080, 1920], [1080, 1080], [1440, 1080]];
 const RETIME_KEY = 'cc-retime';
 
@@ -412,8 +411,6 @@ function mountShotSettings(root, { anchor, keys, openSpeed }) {
   const retimeSw = onOff({ value: retime, title: 'Scale key times with the shot length so the move keeps its timing', onChange: (v) => { retime = v; try { localStorage.setItem(RETIME_KEY, v ? '1' : '0'); } catch {} } });
 
   const fpsNum = number({ step: 1, min: 1, max: 120, precision: 3, width: 48, title: 'Frames per second. Any value, e.g. 23.976.', onChange: (v) => tlOp({ fps: v }, 'frame rate') });
-  const fpsSeg = segmented({ options: FPS_PRESETS.map((f) => ({ value: String(f), label: String(f) })), title: 'Frame rate presets', onChange: (v) => tlOp({ fps: Number(v) }, 'frame rate') });
-  fpsSeg.classList.add('shot-presets');
 
   const sizeSel = select({ options: [], title: 'Export size', onChange: (v) => { const [width, height] = v.split('x').map(Number); store.op({ op: 'meta', width, height }, 'export size').catch(() => {}); } });
   const speedBtn = h('button.cc-field.tl-ease', { type: 'button', title: 'Shot speed: remaps time across the whole shot', onClick: () => openSpeed() });
@@ -427,7 +424,6 @@ function mountShotSettings(root, { anchor, keys, openSpeed }) {
     rowEl('Duration', durField),
     h('div.cc-row.shot-sub', {}, retimeSw, h('span.shot-sub-text', { onClick: () => retimeSw.click() }, 'Stretch keys to fit')),
     rowEl('Frame rate', affix(fpsNum, 'fps')),
-    h('div.cc-row.shot-sub', {}, fpsSeg),
     rowEl('Size', sizeSel),
     rowEl('Speed', speedBtn),
     h('div.cc-divider.cc-divider--h'),
@@ -451,7 +447,6 @@ function mountShotSettings(root, { anchor, keys, openSpeed }) {
     const tl = store.doc.timeline, m = store.doc.meta;
     durNum.set(tl.duration);
     fpsNum.set(tl.fps);
-    fpsSeg.value = String(tl.fps);
     const cur = `${m.width}x${m.height}`;
     const opts = SIZES.map(([w, hh]) => `${w}x${hh}`);
     if (!opts.includes(cur)) opts.unshift(cur);
