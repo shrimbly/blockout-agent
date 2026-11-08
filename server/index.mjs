@@ -158,11 +158,18 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   let listen = false;
   try { listen = !!JSON.parse(fs.readFileSync(listenPath, 'utf8')).on; } catch {}
   const agentListening = () => waiters.length > 0 || Date.now() - lastAgentPoll < 3000;
-  // "Working" only while the agent is visibly active (ops, renders, messages, polls). An agent that took a
-  // prompt and then went quiet for 2 minutes is reported as idle, so the canvas never shows a stuck spinner.
+  // "Working" while the agent holds a prompt. In listen mode the agent comes back to poll as soon as it
+  // finishes (the Stop hook or `canvas wait`), so a taken prompt means it is still busy, even while it is
+  // only thinking and touching nothing; give up after 30 minutes in case the session was closed. Without
+  // listen mode, fall back to 2 minutes since the last thing the agent did.
   let lastAgentActivity = 0;
   const touchAgent = () => { lastAgentActivity = Date.now(); };
-  const agentWorking = () => prompts.some((p) => p.status === 'taken') && Date.now() - lastAgentActivity < 120000;
+  const agentWorking = () => {
+    const taken = prompts.filter((p) => p.status === 'taken');
+    if (!taken.length) return false;
+    if (Date.now() - lastAgentActivity < 120000) return true;
+    return listen && taken.some((p) => Date.now() - (p.takenAt || 0) < 30 * 60000);
+  };
   const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
   let lastStatus = '';
   const pushStatus = () => { const s = JSON.stringify(statusPayload()); if (s !== lastStatus) { lastStatus = s; broadcast('status', statusPayload()); } };
