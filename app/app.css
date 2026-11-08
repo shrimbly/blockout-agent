@@ -88,9 +88,12 @@ body:has(#stage.is-shot) { background: #121211; }
 .chat-composer { flex: none; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .chat-input-row { display: flex; align-items: flex-end; gap: 6px; padding: 4px 4px 4px 10px; border: 1px solid var(--cc-line); border-radius: 12px; background: var(--cc-surface-solid); }
 .chat-input-row:focus-within { border-color: var(--cc-line-strong); }
-.chat-input { flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: transparent; font-size: 12.5px; line-height: 1.4; padding: 5px 0; max-height: 140px; }
+.chat-input { flex: 1; min-width: 0; resize: none; border: 0; outline: none; background: transparent; font-size: 12.5px; line-height: 1.4; padding: 5px 0; max-height: 160px; }
 .chat-input::placeholder { color: var(--cc-text-faint); }
 .chat-input-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* grows with its text (autosize in prompt.js) up to ~8 lines, then scrolls */
+.chat-input-col > .chat-input { flex: none; overflow-y: hidden; }
+.chat-input-col > .chat-input.is-capped { overflow-y: auto; }
 .chat-attach { width: 28px; height: 28px; flex: none; color: var(--cc-text-dim); }
 .chat-tray { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px; }
 .chat-tray[hidden] { display: none; }

@@ -143,10 +143,15 @@ export function mountPrompt(root, { viewport, corner }) {
     for (const a of sent) URL.revokeObjectURL(a.preview);
   }
   function autosize() {
-    input.style.height = 'auto'; input.style.height = `${Math.min(140, input.scrollHeight)}px`;
+    const MAX = 160; // about 8 lines, then it scrolls
+    input.style.height = 'auto';
+    const h_ = input.scrollHeight;
+    input.style.height = `${Math.min(MAX, h_)}px`;
+    input.classList.toggle('is-capped', h_ > MAX);
     send.disabled = attachments.some((a) => a.pending) || (!input.value.trim() && !readyImages().length);
   }
   input.addEventListener('input', autosize);
+  new ResizeObserver(() => { if (input.value) autosize(); }).observe(composer); // rewrap when the panel width changes
   input.addEventListener('keydown', (e) => {
     e.stopPropagation();
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }

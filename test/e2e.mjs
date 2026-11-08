@@ -229,6 +229,17 @@ try {
   await page.waitForTimeout(150);
   ok(!(await page.evaluate(() => window.canvas.store.state.playing)), 'pause button stops playback');
 
+  // the message box grows with its text, up to a cap, and shrinks back after sending
+  const hOf = () => page.$eval('.chat-input', (e) => e.getBoundingClientRect().height);
+  const h1 = await hOf();
+  await page.fill('.chat-input', 'a long message that wraps onto a second line in the chat composer box for sure, and then a third line too');
+  const h2 = await hOf();
+  await page.fill('.chat-input', Array.from({ length: 20 }, (_, i) => `line ${i}`).join('\n'));
+  const h3 = await hOf();
+  ok(h2 > h1 + 10 && h3 <= 161 && h3 > h2, `the message box grows then caps (${h1}→${h2}→${h3}px)`);
+  await page.fill('.chat-input', '');
+  ok(Math.abs((await hOf()) - h1) < 1, 'and shrinks back when emptied');
+
   // new chat clears the thread
   ok(await page.$$eval('.chat-msg', (els) => els.length) > 0, 'thread has messages before a new chat');
   await page.click('.chat-new');
