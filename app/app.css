@@ -18,6 +18,18 @@ body:has(#stage.is-shot) { background: #121211; }
 #corner .cc-btn { background: var(--cc-surface); border: 1px solid var(--cc-line); box-shadow: var(--cc-shadow); }
 .help-panel { position: fixed; top: 48px; right: 12px; width: 280px; z-index: 30; }
 .help-panel[hidden] { display: none; }
+.saves-panel { position: fixed; top: 48px; right: 12px; width: 300px; max-height: calc(100vh - 190px); display: flex; flex-direction: column; z-index: 30; }
+.saves-panel[hidden] { display: none; }
+.saves-panel .cc-panel__body { min-height: 0; }
+.saves-name { flex: 1; }
+.saves-panel .cc-row > .cc-btn { flex: none; }
+.saves-list { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; max-height: 50vh; margin: 0 -4px; }
+.saves-item { display: flex; align-items: center; gap: 8px; padding: 4px; border-radius: var(--cc-radius); }
+.saves-item:hover { background: var(--cc-surface-sunk); }
+.saves-thumb { width: 64px; height: 36px; flex: none; border-radius: 4px; object-fit: cover; background: var(--cc-surface-sunk); border: 1px solid var(--cc-line); }
+.saves-info { flex: 1; min-width: 0; }
+.saves-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.saves-empty, .saves-hint { white-space: normal; padding: 2px 0; }
 .help-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
 .help-key { display: inline-flex; gap: 3px; width: 84px; flex: none; }
 .help-text { color: var(--cc-text-dim); }
