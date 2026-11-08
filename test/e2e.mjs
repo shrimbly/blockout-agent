@@ -208,6 +208,17 @@ try {
   const keyFov = JSON.parse(cli('doc')).timeline.keys[0].fov;
   ok(Math.abs((await page.evaluate(() => window.canvas.viewport.freeCam.fov)) - keyFov) < 0.01, 'selecting a key puts the free view on its lens');
 
+  // shot -> free with a key selected keeps the shot camera's position and lens
+  const k0 = JSON.parse(cli('doc')).timeline.keys[0];
+  await page.evaluate((id) => window.canvas.store.set({ key: id }), k0.id);
+  cli('seek', String(k0.t)); cli('view', 'shot');
+  await page.waitForTimeout(200);
+  const shotPose = await page.evaluate(() => ({ p: window.canvas.viewport.shotCam.position.toArray(), f: window.canvas.viewport.shotCam.fov }));
+  cli('view', 'free');
+  await page.waitForTimeout(200);
+  const freePose = await page.evaluate(() => ({ p: window.canvas.viewport.freeCam.position.toArray(), f: window.canvas.viewport.freeCam.fov }));
+  ok(freePose.p.every((v, i) => Math.abs(v - shotPose.p[i]) < 1e-3) && Math.abs(freePose.f - shotPose.f) < 1e-3, 'back to free with a key selected keeps the shot position and lens');
+
   // the play button pauses while playing (its icon must not be rebuilt every frame)
   await page.click('.tl-bar button[title^="Play"]').catch(async () => page.keyboard.press(' '));
   await page.waitForTimeout(300);

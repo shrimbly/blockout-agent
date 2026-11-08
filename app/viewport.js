@@ -37,6 +37,7 @@ export class Viewport {
 
     this.layout();
     addEventListener('resize', () => this.layout());
+    this._lastView = store.state.view;
     store.on('state', (c) => {
       if (c.view) this._applyView();
       if (c.selection) this._applySelection();
@@ -188,6 +189,16 @@ export class Viewport {
 
   _applyView() {
     const shot = store.state.view === 'shot';
+    // Coming back to free with a key selected: pick up where the shot camera was (position, aim, lens),
+    // so free view continues from the shot instead of jumping back to the old work view.
+    if (!shot && this._lastView === 'shot' && store.state.key) {
+      this.freeCam.position.copy(this.shotCam.position);
+      this.freeOrbit.target.copy(this.shotOrbit.target);
+      this.freeCam.up.set(0, 1, 0);
+      this.setFreeFov(this.shotCam.fov);
+      this.freeOrbit.update();
+    }
+    this._lastView = store.state.view;
     this.freeOrbit.enabled = !shot;
     this.shotOrbit.enabled = shot;
     this.gizmo.camera = this.activeCam;
