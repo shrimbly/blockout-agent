@@ -423,9 +423,26 @@ const commands = {
     if (which === 'stop') {
       // Stop: if the user prompted in the canvas, keep going in this same thread.
       let r = await api('GET', '/api/prompt/next', undefined, { quietFail: true });
-      if (!r?.prompt && st.listen && st.tabs > 0) {
+      if (!r?.prompt && st.listen) {
+        // Long-poll in short slices: Node's fetch gives up on a response after 300 s, which used to end
+        // the wait (and the session) after five idle minutes. Re-check listen mode between slices.
         const secs = Number(process.env.CANVAS_LISTEN_SECONDS || 3300);
-        r = await api('GET', `/api/prompt/next?wait=${secs}`, undefined, { quietFail: true });
+        const slice = Number(process.env.CANVAS_POLL_SLICE || 240);
+        const start = Date.now();
+        while (!r?.prompt) {
+          const left = secs - (Date.now() - start) / 1000;
+          if (left <= 0) break;
+          r = await api('GET', `/api/prompt/next?wait=${Math.ceil(Math.min(left, slice))}`, undefined, { quietFail: true });
+          if (r?.prompt) break;
+          const now = await api('GET', '/api/status', undefined, { quietFail: true });
+          if (!now) { await new Promise((res) => setTimeout(res, 2000)); continue; } // server restarting: keep trying
+          if (!now.listen) return; // canvas listen off: let the session stop
+        }
+        if (!r?.prompt) {
+          // Nothing for a whole wait: hand back a no-op turn so this hook runs again and listening continues.
+          out({ decision: 'block', reason: 'Still listening to the canvas: no prompt arrived. Do nothing and end your turn now (no tool calls, no message); the Stop hook waits again.' });
+          return;
+        }
       }
       if (r?.prompt) {
         out({ decision: 'block', reason: `The user sent this from the canvas. Handle it now, then reply with canvas say.\n\n${formatPrompt(r.prompt)}` });
