@@ -3,9 +3,11 @@
 
 import { h, button, panel, text, toast, icon } from './ui/kit.js';
 import { store } from './store.js';
+import { createDoc } from '/core/doc.js';
 
 export function mountSaves(corner, { viewport }) {
-  const p = panel({ title: 'Scenes', collapsible: false });
+  const newBtn = button({ icon: 'plus', label: 'New scene', kind: 'ghost', title: 'Start a new, empty scene (⌘Z brings this one back)', onClick: () => newScene() });
+  const p = panel({ title: 'Scenes', collapsible: false, actions: [newBtn] });
   p.classList.add('saves-panel');
   p.hidden = true;
 
@@ -79,11 +81,23 @@ export function mountSaves(corner, { viewport }) {
     toggle(false);
   }
 
+  async function newScene() {
+    const cur = store.doc?.meta?.name || 'untitled';
+    const msg = cur === 'untitled'
+      ? 'Start a new, empty scene? ⌘Z brings this one back.'
+      : `Start a new, empty scene? "${cur}" stays in your saves (save again first to keep recent changes). ⌘Z brings it back.`;
+    if (!confirm(msg)) return;
+    try { await store.op({ op: 'load', doc: createDoc() }, 'new scene'); } catch { return; }
+    store.set({ selection: null, key: null, time: 0, playing: false });
+    toast('New scene. ⌘Z to undo.');
+    toggle(false);
+  }
+
   store.on('saves', ({ saves }) => { if (!p.hidden) render(saves); });
   addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); toggle(true); }
     if (e.key === 'Escape' && !p.hidden) toggle(false);
   }, true);
 
-  return { toggle, save, load, btn };
+  return { toggle, save, load, newScene, btn };
 }

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { PRIMITIVES } from '../core/doc.js';
+import { PRIMITIVES, createDoc } from '../core/doc.js';
 import { EASES } from '../core/curves.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -32,6 +32,7 @@ Objects (meters, Y up, pivot at bottom centre, rotation in degrees)
   canvas set <id> [same flags as add] [--move dx,dy,dz] [--type t]
   canvas dup <id> [--offset x,y,z] [--name n]
   canvas rm <id> [id...]
+  canvas new                                start a new, empty scene (undoable)
   canvas clear [--keys]                     remove all objects (and camera keys)
   canvas env [--background #hex] [--ground on|off] [--grid on|off] [--fog 0.02] [--sun x,y,z]
   canvas meta [--name n] [--width 1280] [--height 720]
@@ -271,6 +272,7 @@ const commands = {
     out(r.results[0].id);
   },
   async rm({ pos }) { await op({ op: 'remove', ids: pos }); out(`removed ${pos.join(', ')}`); },
+  async new() { const r = await op({ op: 'load', doc: createDoc() }); out(`new empty scene (${r.results[0].keys} camera keys). canvas undo brings the old one back`); },
   async clear({ flags }) { const r = await op({ op: 'clear', keys: !!flags.keys }); out(`removed ${r.results[0].removed} objects`); },
   async env({ flags }) {
     const o = { op: 'env' };

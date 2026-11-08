@@ -143,6 +143,14 @@ try {
   ok(/from-ui/.test(cli('saves')) && fs.existsSync(path.join(dir, 'saved', 'from-ui.png')), 'save from the canvas writes the scene and a thumbnail');
   await page.keyboard.press('Escape');
   ok((await page.textContent('.scenes-name')) === 'from-ui', 'the Scenes button names the version you saved');
+  page.once('dialog', (d) => d.accept());
+  await page.keyboard.press('Control+s');
+  await page.click('.saves-panel .cc-panel__head .cc-btn');
+  await page.waitForTimeout(300);
+  const fresh = JSON.parse(cli('doc'));
+  ok(fresh.objects.length === 0 && fresh.meta.name === 'untitled', 'New scene in the Scenes menu starts an empty scene');
+  cli('undo');
+  ok(JSON.parse(cli('doc')).objects.length > 0, 'undo brings the old scene back after New scene');
 
   // chat toggle + shot settings
   const chatOpen = await page.isVisible('.chat');
