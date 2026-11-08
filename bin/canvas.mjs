@@ -38,6 +38,13 @@ Objects (meters, Y up, pivot at bottom centre, rotation in degrees)
   canvas meta [--name n] [--width 1280] [--height 720]
   types: ${Object.entries(PRIMITIVES).map(([k, v]) => `${k}(${Object.keys(v.params).join(',')})`).join(' ')}
 
+Moving objects (keys on the shot timeline; straight-line moves with an ease, objects hold before/after)
+  canvas move <id> [--to x,y,z | --by dx,dy,dz] [--rot x,y,z | --turn dx,dy,dz] [--scale s|x,y,z]
+                   [--at 0] [--over 1] [--ease name]   move from where it is at --at, over --over seconds
+                                                        (e.g. canvas move hero --to 0,0,-3 --at 1 --over 3)
+  canvas okey <id> --t 2 [--pos x,y,z] [--rot x,y,z] [--scale ..] [--ease name]   key an object at a time
+  canvas okey-rm <id> [--t 2]               remove one object key (or, without --t, all of its animation)
+
 Camera timeline
   canvas key --t 2 --pos x,y,z --target x,y,z [--fov 40 | --lens 35] [--roll 0] [--ease name|x1,y1,x2,y2]
   canvas key --t 2 --from-view              key the camera the user is looking through right now
@@ -311,6 +318,36 @@ const commands = {
   },
   async 'key-rm'({ pos }) { const r = await op({ op: 'key.remove', ...keyRef(pos[0]) }); out(`removed key ${r.results[0].removed}`); },
   async 'keys-clear'() { const r = await op({ op: 'key.clear' }); out(`removed ${r.results[0].removed} keys`); },
+  async move({ pos, flags }) {
+    if (!pos[0]) throw new Error('usage: canvas move <id> --to x,y,z [--at 0] [--over 1] [--ease easeInOut]');
+    const o = { op: 'anim.move', id: pos[0] };
+    if (flags.to != null) o.to = vec(flags.to);
+    if (flags.by != null) o.by = vec(flags.by);
+    if (flags.rot != null || flags.rotation != null) o.rotation = vec(flags.rot ?? flags.rotation);
+    if (flags.turn != null) o.turn = vec(flags.turn);
+    if (flags.scale != null) o.scale = vec(flags.scale);
+    if (flags.at != null) o.at = num(flags.at);
+    if (flags.over != null) o.over = num(flags.over);
+    if (flags.ease != null) o.ease = easeArg(flags.ease);
+    const r = (await op(o, `move ${pos[0]}`)).results[0];
+    out(`${r.id} moves ${r.from}s → ${r.to}s (${r.keys} keys)`);
+  },
+  async okey({ pos, flags }) {
+    if (!pos[0] || flags.t == null) throw new Error('usage: canvas okey <id> --t 2 [--pos x,y,z] [--rot x,y,z] [--scale s] [--ease name]');
+    const o = { op: 'anim.key', id: pos[0], t: num(flags.t) };
+    if (flags.pos != null || flags.position != null) o.position = vec(flags.pos ?? flags.position);
+    if (flags.rot != null || flags.rotation != null) o.rotation = vec(flags.rot ?? flags.rotation);
+    if (flags.scale != null) o.scale = vec(flags.scale);
+    if (flags.ease != null) o.ease = easeArg(flags.ease);
+    const r = (await op(o, `key ${pos[0]}`)).results[0];
+    out(`keyed ${r.id} at ${r.t}s (${r.keys} keys)`);
+  },
+  async 'okey-rm'({ pos, flags }) {
+    if (!pos[0]) throw new Error('usage: canvas okey-rm <id> [--t 2]');
+    const r = (await op({ op: 'anim.remove', id: pos[0], t: flags.t != null ? num(flags.t) : undefined })).results[0];
+    out(`${r.id}: ${r.keys} animation keys left`);
+  },
+
   async timeline({ flags }) {
     const o = { op: 'timeline' };
     if (flags.duration != null) o.duration = num(flags.duration);

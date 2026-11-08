@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { buildGeometry } from './geometry.js';
-import { sampleCamera } from '/core/curves.js';
+import { sampleCamera, sampleObject } from '/core/curves.js';
 import { store } from './store.js';
 
 const DEG = Math.PI / 180;
@@ -261,14 +261,17 @@ export class Viewport {
     }
     const m = id && this.meshes.get(id);
     if (m) this.gizmo.attach(m.mesh); else this.gizmo.detach();
+    this._rebuildObjPath();
   }
 
   _commitTransform() {
     const mesh = this.gizmo.object;
     if (!mesh) return;
     const id = mesh.userData.id;
+    const o = store.object(id);
     store.op({
-      op: 'update', id,
+      // an animated object gets a key at the playhead instead (adds one, or updates the key there)
+      ...(o?.anim?.length ? { op: 'anim.key', t: +store.state.time.toFixed(3) } : { op: 'update' }), id,
       position: mesh.position.toArray().map(r3),
       rotation: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z].map((v) => Math.round((v / DEG) * 100) / 100),
       scale: mesh.scale.toArray().map(r3),
@@ -361,9 +364,49 @@ export class Viewport {
   }
 
   // ---------- per frame ----------
+  /** Put animated objects where they are at time t (the one being dragged stays under the pointer). */
+  poseObjects(t) {
+    for (const o of store.doc.objects) {
+      if (!o.anim?.length) continue;
+      const m = this.meshes.get(o.id);
+      if (!m || (this.dragging && this.gizmo.object === m.mesh)) continue;
+      const s = sampleObject(o, store.doc.timeline, t);
+      m.mesh.position.fromArray(s.position);
+      m.mesh.rotation.set(s.rotation[0] * DEG, s.rotation[1] * DEG, s.rotation[2] * DEG, 'XYZ');
+      m.mesh.scale.fromArray(s.scale);
+    }
+  }
+
+  _rebuildObjPath() {
+    if (!this.objPath) {
+      this.objPath = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: ACCENT, dashSize: 0.15, gapSize: 0.1, transparent: true, opacity: 0.8 }));
+      this.objKeyDots = new THREE.Group();
+      this.helpers.add(this.objPath, this.objKeyDots);
+    }
+    const o = store.state.selection && store.object(store.state.selection);
+    const has = !!o?.anim?.length && o.anim.length > 1;
+    this.objPath.visible = this.objKeyDots.visible = has;
+    this.objKeyDots.clear();
+    if (!has) return;
+    const t0 = o.anim[0].t, t1 = o.anim[o.anim.length - 1].t;
+    const tl = { ...store.doc.timeline, speed: 'linear' };
+    const N = Math.max(2, Math.ceil((t1 - t0) * 30));
+    const pts = [];
+    for (let i = 0; i <= N; i++) {
+      const p = sampleObject(o, tl, t0 + ((t1 - t0) * i) / N).position;
+      pts.push(new THREE.Vector3(p[0], p[1] + 0.02, p[2]));
+    }
+    this.objPath.geometry.dispose();
+    this.objPath.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+    this.objPath.computeLineDistances();
+    const dotGeo = new THREE.SphereGeometry(0.06, 10, 8), dotMat = new THREE.MeshBasicMaterial({ color: ACCENT });
+    for (const k of o.anim) { const d = new THREE.Mesh(dotGeo, dotMat); d.position.fromArray(k.position).setY(k.position[1] + 0.02); this.objKeyDots.add(d); }
+  }
+
   tick() {
     const { view, time, camDirty } = store.state;
     if (!store.doc) return;
+    this.poseObjects(time);
     this._stepAim();
     // shot camera follows the timeline unless the user is hand-framing it
     if (!(view === 'shot' && camDirty)) this.poseCamera(this.shotCam, time, view === 'shot' ? this.shotOrbit : null);
@@ -417,7 +460,9 @@ export class Viewport {
     if (grid != null) this.grid.visible = !!grid;
     const sel = store.state.selection && this.meshes.get(store.state.selection);
     if (sel) { sel.edges.material.color.set(0x000000); sel.edges.material.opacity = 0.22; }
+    this.poseObjects(t);
     renderer.render(this.scene, cam);
+    this.poseObjects(store.state.time);
     for (const [o, v] of restore) o.visible = v;
     if (sel) this._applySelection();
     return renderer.domElement;

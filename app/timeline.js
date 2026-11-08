@@ -36,6 +36,10 @@ export function mountTimeline(root, { viewport, exporter }) {
     value: store.state.view, onChange: (v) => store.set({ view: v }),
   });
   const keyBtn = button({ icon: 'keyAdd', label: 'Key', title: 'Key the current view at the playhead (K)', onClick: () => keyFromView() });
+  // Key the selected object where it is now, at the playhead. Once it has a key, dragging it with the
+  // gizmo at another time adds the next key, so a move is: key, scrub, drag.
+  const objKeyLabel = h('span');
+  const objKeyBtn = h('button.cc-btn.tl-objkey', { type: 'button', onClick: () => keyObject() }, h('span.tl-odot'), objKeyLabel);
 
   // selected key: time, ease (opens the curve editor), lens, set to view, delete
   const keyTime = h('span.cc-mono.tl-keytime');
@@ -61,7 +65,7 @@ export function mountTimeline(root, { viewport, exporter }) {
   const exportBtn = button({ icon: 'film', label: 'Export', kind: 'primary', title: 'Render the blockout video (mp4)', onClick: () => exporter.exportVideo().catch((e) => toast(e.message, { kind: 'error' })) });
 
   const bar = h('div.tl-bar',
-    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, lensField, keyGroup,
+    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, lensField, keyGroup, objKeyBtn,
     h('span.cc-spacer'), shotBtn, exportBtn);
 
   // ---------- track ----------
@@ -79,13 +83,23 @@ export function mountTimeline(root, { viewport, exporter }) {
   const keys = () => [...store.doc.timeline.keys].sort((a, b) => a.t - b.t);
   const keyAt = (x) => keys().find((k) => Math.abs(xOf(drag?.kind === 'key' && drag.id === k.id ? drag.t : k.t) - x) < 8);
 
+  const selObj = () => (store.state.selection && store.object(store.state.selection)) || null;
+  const okeys = () => selObj()?.anim || [];
+  const laneY = () => track.clientHeight - 8; // object keys sit in a lane under the camera keys
+  const okeyAt = (x, y) => (y > laneY() - 8 ? okeys().find((k) => Math.abs(xOf(drag?.kind === 'okey' && drag.t0 === k.t ? drag.t : k.t) - x) < 7) : null);
+
   function seek(t) { store.set({ time: Math.max(0, Math.min(dur(), t)), camDirty: false }); }
 
   track.addEventListener('pointerdown', (e) => {
     const x = e.offsetX;
-    const k = keyAt(x);
+    const ok = okeyAt(x, e.offsetY);
+    const k = ok ? null : keyAt(x);
     track.setPointerCapture(e.pointerId);
-    if (k && e.button === 0) {
+    if (ok && e.button === 0) {
+      drag = { kind: 'okey', id: selObj().id, t: ok.t, t0: ok.t, moved: false };
+      store.set({ playing: false });
+      seek(ok.t);
+    } else if (k && e.button === 0) {
       drag = { kind: 'key', id: k.id, t: k.t, t0: k.t, moved: false };
       store.set({ key: k.id });
       seek(k.t);
@@ -96,10 +110,10 @@ export function mountTimeline(root, { viewport, exporter }) {
     }
   });
   track.addEventListener('pointermove', (e) => {
-    if (!drag) { track.style.cursor = keyAt(e.offsetX) ? 'grab' : 'default'; return; }
+    if (!drag) { track.style.cursor = okeyAt(e.offsetX, e.offsetY) || keyAt(e.offsetX) ? 'grab' : 'default'; return; }
     drag.moved = true;
     const t = snap(tOf(e.offsetX), e);
-    if (drag.kind === 'key') { drag.t = t; seek(t); }
+    if (drag.kind === 'key' || drag.kind === 'okey') { drag.t = t; seek(t); }
     else seek(t);
     draw();
   });
@@ -109,13 +123,27 @@ export function mountTimeline(root, { viewport, exporter }) {
     if (d.kind === 'key' && d.moved && Math.abs(d.t - d.t0) > 1e-4) {
       store.op({ op: 'key.update', id: d.id, t: d.t }, 'retime key').catch(() => {});
     }
+    if (d.kind === 'okey' && d.moved && Math.abs(d.t - d.t0) > 1e-4) {
+      const k = store.object(d.id)?.anim?.find((x) => Math.abs(x.t - d.t0) < 1e-3);
+      if (k) store.op([{ op: 'anim.remove', id: d.id, t: d.t0 }, { op: 'anim.key', id: d.id, t: +d.t.toFixed(3), position: k.position, rotation: k.rotation, scale: k.scale, ease: k.ease }], `retime ${d.id} key`).catch(() => {});
+    }
     if (d.kind === 'scrub' && !d.moved && !keyAt(e.offsetX)) store.set({ key: null });
     draw();
   });
   track.addEventListener('dblclick', (e) => { if (!keyAt(e.offsetX)) keyFromView(snap(tOf(e.offsetX), e)); });
-  track.addEventListener('contextmenu', (e) => { const k = keyAt(e.offsetX); if (k) { e.preventDefault(); store.set({ key: k.id }); deleteKey(); } });
+  track.addEventListener('contextmenu', (e) => {
+    const ok = okeyAt(e.offsetX, e.offsetY);
+    if (ok) { e.preventDefault(); store.op({ op: 'anim.remove', id: selObj().id, t: ok.t }, 'remove object key').catch(() => {}); return; }
+    const k = keyAt(e.offsetX); if (k) { e.preventDefault(); store.set({ key: k.id }); deleteKey(); } });
 
   // ---------- actions ----------
+  async function keyObject(t = store.state.time) {
+    const o = selObj();
+    if (!o) return;
+    await store.op({ op: 'anim.key', id: o.id, t: +t.toFixed(3) }, `key ${o.id}`);
+    toast(o.anim?.length ? `Keyed ${o.id} at ${t.toFixed(2)}s` : `Keyed ${o.id} at ${t.toFixed(2)}s. Move the playhead, then drag it to key the next spot`);
+  }
+
   async function keyFromView(t = store.state.time) {
     const p = viewport.getPose();
     const [r] = await store.op({ op: 'key.add', t: +t.toFixed(3), position: p.position, target: p.target, fov: p.fov }, 'key camera');
@@ -214,6 +242,21 @@ export function mountTimeline(root, { viewport, exporter }) {
       ctx.fill();
     }
 
+    // selected object's keys, in a lane under the camera keys
+    const oks = okeys();
+    if (oks.length) {
+      const y = laneY();
+      const pts = oks.map((k) => (drag?.kind === 'okey' && Math.abs(drag.t0 - k.t) < 1e-3 ? drag.t : k.t)).sort((a, b) => a - b);
+      ctx.fillStyle = accent; ctx.globalAlpha = 0.35;
+      if (pts.length > 1) ctx.fillRect(xOf(pts[0]), y - 0.5, xOf(pts[pts.length - 1]) - xOf(pts[0]), 1.5);
+      ctx.globalAlpha = 1;
+      for (const t of pts) {
+        ctx.beginPath(); ctx.arc(xOf(t), y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = css('--cc-surface-solid'); ctx.fill();
+        ctx.lineWidth = 1.5; ctx.strokeStyle = accent; ctx.stroke(); ctx.lineWidth = 1;
+      }
+    }
+
     // playhead
     const px = Math.round(xOf(store.state.time));
     ctx.fillStyle = accent;
@@ -256,6 +299,14 @@ export function mountTimeline(root, { viewport, exporter }) {
       easeBtn.title = last ? 'Last key: no segment after it' : 'Easing from this key to the next (opens the curve editor)';
       // selecting a key (or the agent changing its lens) puts the free view on that lens too
       changed(lensField, [k.id, k.fov], () => viewport.setFreeFov(k.fov));
+    }
+    const so = selObj();
+    objKeyBtn.hidden = !so;
+    if (so) {
+      objKeyLabel.textContent = `Key ${so.id}`;
+      const n = so.anim?.length || 0;
+      objKeyBtn.title = n ? `${so.id} has ${n} key${n === 1 ? '' : 's'} (circles under the track). Key it at the playhead; dragging it with the gizmo also keys it` : `Start animating ${so.id}: key where it is now at the playhead`;
+      objKeyBtn.classList.toggle('is-animated', !!n);
     }
     const shotView = store.state.view === 'shot';
     const lensFov = k ? k.fov : shotView ? (sampleCamera(store.doc.timeline, store.state.time)?.fov ?? viewport.freeCam.fov) : viewport.freeCam.fov;

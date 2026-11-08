@@ -174,6 +174,25 @@ try {
   cli('undo');
   ok(JSON.parse(cli('doc')).objects.length > 0, 'undo brings the old scene back after New scene');
 
+  // objects move over time: the agent's move command plays back in the canvas
+  cli('add', 'person', '--name', 'walker', '--pos', '0,0,4');
+  ok(/walker moves 1s → 3s/.test(cli('move', 'walker', '--to', '0,0,-2', '--at', '1', '--over', '2', '--ease', 'linear')), 'canvas move adds a timed move');
+  ok(/anim: 1s@0,0,4 → 3s@0,0,-2/.test(cli('ls')), 'canvas ls shows the move');
+  cli('seek', '2');
+  await page.waitForTimeout(200);
+  const wz = await page.evaluate(() => window.canvas.viewport.meshes.get('walker').mesh.position.z);
+  ok(Math.abs(wz - 1) < 0.05, `the object is halfway at 2s (z=${wz.toFixed(2)})`);
+  await page.evaluate(() => window.canvas.store.set({ selection: 'walker' }));
+  await page.waitForTimeout(150);
+  ok(await page.isVisible('.tl-objkey') && /Key walker/.test(await page.textContent('.tl-objkey')), 'selecting an object shows its Key button');
+  cli('seek', '4');
+  await page.click('.tl-objkey');
+  await page.waitForTimeout(300);
+  ok(JSON.parse(cli('doc')).objects.find((o) => o.id === 'walker').anim.length === 3, 'Key walker adds a key at the playhead');
+  cli('okey-rm', 'walker');
+  cli('rm', 'walker');
+  await page.evaluate(() => window.canvas.store.set({ selection: null }));
+
   // the lens field drives the free view camera too
   cli('view', 'free');
   await page.evaluate(() => window.canvas.store.set({ key: null }));

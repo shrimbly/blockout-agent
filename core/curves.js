@@ -149,3 +149,24 @@ export function sampleCamera(timeline, t) {
 /** Convert a vertical FOV (deg) to a full-frame-equivalent focal length (mm), and back. */
 export const fovToLens = (fov) => 12 / Math.tan((fov * Math.PI) / 360);
 export const lensToFov = (mm) => (360 / Math.PI) * Math.atan(12 / mm);
+
+/**
+ * Transform of an object at shot time t. Objects without animation keys stay where they are.
+ * Animation keys ({ t, position, rotation, scale, ease }) interpolate in straight lines with the
+ * segment's ease; before the first key and after the last the object holds still.
+ * The shot speed curve remaps object time too, so the whole shot stays in sync.
+ */
+export function sampleObject(obj, timeline, t) {
+  const keys = obj.anim;
+  if (!keys?.length) return { position: obj.position, rotation: obj.rotation, scale: obj.scale };
+  const tt = remapTime(timeline, t);
+  const pose = (k) => ({ position: [...k.position], rotation: [...k.rotation], scale: [...k.scale] });
+  if (keys.length === 1 || tt <= keys[0].t) return pose(keys[0]);
+  const last = keys[keys.length - 1];
+  if (tt >= last.t) return pose(last);
+  let i = 0;
+  while (i < keys.length - 2 && tt >= keys[i + 1].t) i++;
+  const a = keys[i], b = keys[i + 1];
+  const s = bezier(resolveEase(a.ease), clamp((tt - a.t) / Math.max(1e-6, b.t - a.t), 0, 1));
+  return { position: lerp3(a.position, b.position, s), rotation: lerp3(a.rotation, b.rotation, s), scale: lerp3(a.scale, b.scale, s) };
+}

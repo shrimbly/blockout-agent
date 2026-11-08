@@ -4,7 +4,7 @@
 // Conventions: meters, Y up, rotations in degrees (XYZ order), colors as "#rrggbb".
 // Every primitive's pivot is at its bottom centre, so position [x, 0, z] sits on the ground.
 
-import { resolveEase, EASES } from './curves.js';
+import { resolveEase, EASES, sampleObject } from './curves.js';
 
 export const PRIMITIVES = {
   box: { params: { w: 1, h: 1, d: 1 }, size: ['w', 'h', 'd'], about: 'cuboid, w × h × d' },
@@ -93,7 +93,7 @@ function normParams(type, params = {}, base) {
   return out;
 }
 
-const OBJECT_FIELDS = new Set(['op', 'type', 'name', 'id', 'newId', 'position', 'rotation', 'scale', 'move', 'color', 'note', 'size', 'params']);
+const OBJECT_FIELDS = new Set(['op', 'type', 'name', 'id', 'newId', 'position', 'rotation', 'scale', 'move', 'color', 'note', 'size', 'params', 'anim']);
 
 // Split loose fields ({w:2, r:1}) out of an op into params. Unknown fields are errors (catches typos).
 function pickParams(type, op) {
@@ -132,6 +132,37 @@ function normKey(k, prev = {}) {
 
 const round = (n) => Math.round(n * 1000) / 1000;
 
+// ----- object animation: obj.anim = [{ t, position, rotation, scale, ease }], sorted by t -----
+function normAnimKey(k, base) {
+  if (!Number.isFinite(k.t) || k.t < 0) throw new Error('an animation key needs a time t ≥ 0 in seconds');
+  const ease = k.ease ?? 'easeInOut';
+  resolveEase(ease);
+  return {
+    t: round(k.t),
+    position: (k.position != null ? vec3(k.position, 'position') : [...base.position]).map(round),
+    rotation: (k.rotation != null ? vec3(k.rotation, 'rotation') : [...base.rotation]).map(round),
+    scale: (k.scale != null ? vec3(k.scale, 'scale') : [...base.scale]).map(round),
+    ease,
+  };
+}
+// Keep keys sorted and the object's own transform equal to its first key, so lists and the gizmo agree.
+function syncAnim(o) {
+  o.anim.sort((a, b) => a.t - b.t);
+  const f = o.anim[0];
+  o.position = [...f.position]; o.rotation = [...f.rotation]; o.scale = [...f.scale];
+}
+// Add or replace a key at time t; missing fields come from where the object is at t.
+function putAnimKey(doc, o, k) {
+  const at = sampleObject(o, { ...doc.timeline, speed: 'linear' }, k.t);
+  const key = normAnimKey(k, at);
+  o.anim ||= [];
+  const i = o.anim.findIndex((x) => Math.abs(x.t - key.t) < 1e-3);
+  if (i >= 0) { if (k.ease == null) key.ease = o.anim[i].ease; o.anim[i] = key; } else o.anim.push(key);
+  syncAnim(o);
+  if (key.t > doc.timeline.duration) doc.timeline.duration = key.t;
+  return key;
+}
+
 /** Operation handlers. Each mutates doc in place and returns a result. */
 export const OPS = {
   add(doc, op) {
@@ -150,6 +181,7 @@ export const OPS = {
       color: color(op.color),
     };
     if (op.note) obj.note = String(op.note);
+    if (Array.isArray(op.anim) && op.anim.length) { obj.anim = op.anim.map((k) => normAnimKey(k, obj)); syncAnim(obj); }
     doc.objects.push(obj);
     return { id };
   },
@@ -164,10 +196,20 @@ export const OPS = {
     const params = pickParams(o.type, op);
     if (Object.keys(params).length) o.params = normParams(o.type, params, o.params);
     if (op.name != null) o.name = String(op.name);
+    // On an animated object, changing its transform shifts the whole move (every key) by the same amount.
+    const before = { position: [...o.position], rotation: [...o.rotation], scale: [...o.scale] };
     if (op.position != null) o.position = vec3(op.position, 'position');
     if (op.rotation != null) o.rotation = vec3(op.rotation, 'rotation');
     if (op.scale != null) o.scale = vec3(op.scale, 'scale');
     if (op.move != null) o.position = vec3(op.move, 'move').map((v, i) => round(o.position[i] + v));
+    if (o.anim?.length) {
+      for (const k of o.anim) {
+        k.position = k.position.map((v, i) => round(v + o.position[i] - before.position[i]));
+        k.rotation = k.rotation.map((v, i) => round(v + o.rotation[i] - before.rotation[i]));
+        k.scale = k.scale.map((v, i) => round(before.scale[i] ? v * (o.scale[i] / before.scale[i]) : o.scale[i]));
+      }
+      syncAnim(o);
+    }
     if (op.color != null) o.color = color(op.color);
     if (op.note != null) o.note = String(op.note);
     return { id: o.id };
@@ -260,6 +302,46 @@ export const OPS = {
     return { removed: n };
   },
 
+  // ----- object animation -----
+  /** Key an object's transform at time t (fields left out keep where the object is at t). */
+  'anim.key'(doc, op) {
+    const o = findObject(doc, op.id);
+    const k = putAnimKey(doc, o, { t: op.t ?? 0, position: op.position, rotation: op.rotation, scale: op.scale, ease: op.ease });
+    return { id: o.id, t: k.t, keys: o.anim.length };
+  },
+
+  /**
+   * Move an object over time: from `at` (default 0) to `at + over` (default 1 s), ending at `to`
+   * (or shifted `by`), optionally rotating/scaling. Keeps where it is at `at` as the start key.
+   */
+  'anim.move'(doc, op) {
+    const o = findObject(doc, op.id);
+    const at = op.at ?? 0, over = op.over ?? 1;
+    if (!(at >= 0)) throw new Error('at must be a time ≥ 0');
+    if (!(over > 0)) throw new Error('over must be a duration > 0');
+    const speedless = { ...doc.timeline, speed: 'linear' };
+    const start = sampleObject(o, speedless, at);
+    putAnimKey(doc, o, { t: at, ...start, ease: op.ease });
+    const end = {};
+    if (op.to != null) end.position = vec3(op.to, 'to');
+    if (op.by != null) end.position = vec3(op.by, 'by').map((v, i) => round((end.position ?? start.position)[i] + v));
+    if (op.rotation != null) end.rotation = vec3(op.rotation, 'rotation');
+    if (op.turn != null) end.rotation = vec3(op.turn, 'turn').map((v, i) => round((end.rotation ?? start.rotation)[i] + v));
+    if (op.scale != null) end.scale = vec3(op.scale, 'scale');
+    if (!Object.keys(end).length) throw new Error('anim.move needs to, by, rotation, turn or scale');
+    putAnimKey(doc, o, { t: at + over, ...start, ...end, ease: op.ease });
+    return { id: o.id, from: round(at), to: round(at + over), keys: o.anim.length };
+  },
+
+  'anim.remove'(doc, op) {
+    const o = findObject(doc, op.id);
+    const before = o.anim?.length || 0;
+    o.anim = (o.anim || []).filter((k) => !(op.t != null ? Math.abs(k.t - op.t) < 1e-3 : true));
+    if (op.t != null && o.anim.length === before) throw new Error(`${o.id} has no key at ${op.t}s (keys at: ${(o.anim || []).map((k) => k.t).join(', ') || 'none'})`);
+    if (o.anim.length) syncAnim(o); else delete o.anim;
+    return { id: o.id, keys: o.anim?.length || 0 };
+  },
+
   timeline(doc, op) {
     const tl = doc.timeline;
     if (op.duration != null) {
@@ -267,6 +349,7 @@ export const OPS = {
       if (op.retime) { // scale key times to the new duration
         const f = op.duration / tl.duration;
         tl.keys.forEach((k) => { k.t = round(k.t * f); });
+        doc.objects.forEach((o) => o.anim?.forEach((k) => { k.t = round(k.t * f); }));
       }
       tl.duration = round(op.duration);
     }
@@ -360,7 +443,8 @@ export function describe(o) {
   const p = Object.entries(o.params).filter(([, v]) => v != null).map(([k, v]) => `${k}=${v}`).join(' ');
   const r = o.rotation.some((v) => v) ? ` rot=${o.rotation.join(',')}` : '';
   const s = o.scale.some((v) => v !== 1) ? ` scale=${o.scale.join(',')}` : '';
-  return `${o.id} (${o.type} ${p}) pos=${o.position.join(',')}${r}${s} ${o.color}${o.note ? ` — ${o.note}` : ''}`;
+  const a = o.anim?.length ? ` anim: ${o.anim.map((k) => `${k.t}s@${k.position.join(',')}${k.rotation.some((v) => v) ? ` rot=${k.rotation.join(',')}` : ''}`).join(' → ')}` : '';
+  return `${o.id} (${o.type} ${p}) pos=${o.position.join(',')}${r}${s} ${o.color}${o.note ? ` — ${o.note}` : ''}${a}`;
 }
 
 export const EASE_NAMES = Object.keys(EASES);

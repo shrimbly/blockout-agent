@@ -74,6 +74,32 @@ canvas key --t 2 --from-view          # key whatever the user is looking at righ
 - Keep the target moving smoothly too; a still target with a moving camera reads as an orbit.
 - Check the move with `canvas storyboard --frames 8` before exporting.
 
+## 4a. Moving objects
+
+Objects can move during the shot. Each move adds keys on the shot timeline; between keys an object
+travels in a straight line with the segment's ease, and before its first / after its last key it holds still.
+Translate a prompt like "over 3s have the character enter the house" into `move` commands:
+
+```bash
+canvas ls                                   # find the character, the house and its door
+canvas move hero --rot 0,180,0 --at 0 --over 0.3        # face the door first (person faces +z)
+canvas move hero --to 0,0,-1.5 --at 0.3 --over 2.7 --ease easeInOut   # walk to and through the doorway
+canvas storyboard --frames 6                # check it, then reply
+```
+
+- `--at` is when the move starts (default 0), `--over` how long it takes (default 1 s). Each move
+  starts from where the object is at `--at`, so chain moves back to back to build a path (around a
+  corner = two moves). `--to` is an absolute position, `--by` a relative offset; `--rot` / `--turn`
+  rotate (absolute / relative degrees), `--scale` scales.
+- To face the direction of travel, set the Y rotation to `atan2(dx, dz)` in degrees (a person faces +z).
+- Moves past the end of the shot lengthen it. Fit moves inside `canvas timeline --duration` unless
+  the user asked for a longer shot.
+- `canvas okey <id> --t 2 --pos ...` keys a single moment; `canvas okey-rm <id> [--t 2]` removes one key
+  (or all of an object's animation). `canvas set` on an animated object shifts its whole move.
+- `canvas ls` prints each object's keys (`anim: 1s@0,0,4 → 3s@0,0,-2`). In the canvas, the selected
+  object's keys show as circles under the camera keys; dragging an animated object with the gizmo keys it
+  at the playhead.
+
 ## 4b. Save and load versions
 
 The scene autosaves continuously, and once it has been saved under a name every change also autosaves into that named version (`meta.name`). Before a big rework (or when the user says "save this"), keep a

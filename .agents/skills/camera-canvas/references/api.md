@@ -11,7 +11,10 @@ Three ways in, all equivalent: the `canvas` CLI (`node bin/canvas.mjs …`), JSO
   "env": { "background": "#e9e7e2", "ground": true, "grid": true, "fog": 0, "sun": [6, 10, 4] },
   "objects": [
     { "id": "tower", "name": "tower", "type": "box", "params": { "w": 2, "h": 6, "d": 2 },
-      "position": [-3, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#d8d4cc", "note": "optional" }
+      "position": [-3, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#d8d4cc", "note": "optional",
+      // optional: moves during the shot; position/rotation/scale equal the first key
+      "anim": [ { "t": 1, "position": [-3, 0, -2], "rotation": [0, 0, 0], "scale": [1, 1, 1], "ease": "easeInOut" },
+                { "t": 3, "position": [-3, 0, 2], "rotation": [0, 0, 0], "scale": [1, 1, 1], "ease": "easeInOut" } ] }
   ],
   "timeline": {
     "duration": 5, "fps": 24, "interp": "smooth", "speed": "linear",
@@ -37,6 +40,9 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 | `clear` | `keys?: true` also removes camera keys | `{ removed }` |
 | `env` | `background`, `ground`, `grid`, `fog` (0–0.1 exp density), `sun` [x,y,z] direction | `{ env }` |
 | `meta` | `name`, `width`, `height` (export size, even numbers) | `{ meta }` |
+| `anim.move` | `id`, `to?` [x,y,z] or `by?`, `rotation?` or `turn?`, `scale?`, `at?` (start s, default 0), `over?` (s, default 1), `ease?`. Starts from where the object is at `at` | `{ id, from, to, keys }` |
+| `anim.key` | `id`, `t`, `position?`, `rotation?`, `scale?`, `ease?`. Missing fields keep where it is at `t`; a key already at `t` is replaced | `{ id, t, keys }` |
+| `anim.remove` | `id`, `t?` (omit to remove all of its animation) | `{ id, keys }` |
 | `key.add` | `t`, `position`, `target`, `fov?`, `roll?`, `ease?`. A key already at `t` is updated instead | `{ id, replaced? }` |
 | `key.update` | `id` or `index` (by time order), any key field | `{ id }` |
 | `key.remove` | `id` or `index` | `{ removed }` |

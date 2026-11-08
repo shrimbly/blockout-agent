@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDoc, applyOps, migrate, PRIMITIVES } from '../core/doc.js';
-import { bezier, sampleCamera, resolveEase, EASES, remapTime, fovToLens, lensToFov } from '../core/curves.js';
+import { bezier, sampleCamera, sampleObject, resolveEase, EASES, remapTime, fovToLens, lensToFov } from '../core/curves.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -99,4 +99,28 @@ test('frame rate defaults to 24 and accepts decimals', () => {
   const { doc } = applyOps(createDoc(), [{ op: 'timeline', fps: 23.976 }]);
   assert.equal(doc.timeline.fps, 23.976);
   assert.throws(() => applyOps(createDoc(), [{ op: 'timeline', fps: 0.5 }]));
+});
+
+test('objects move over time with anim.move and stay put without keys', () => {
+  let { doc } = applyOps(createDoc(), [{ op: 'add', type: 'person', name: 'hero', position: [0, 0, 5] }]);
+  const still = sampleObject(doc.objects[0], doc.timeline, 2);
+  assert.deepEqual(still.position, [0, 0, 5]);
+  ({ doc } = applyOps(doc, { op: 'anim.move', id: 'hero', to: [0, 0, -1], at: 1, over: 3, ease: 'linear' }));
+  const o = doc.objects[0];
+  assert.deepEqual(o.anim.map((k) => k.t), [1, 4]);
+  assert.deepEqual(sampleObject(o, doc.timeline, 0).position, [0, 0, 5]);
+  assert.deepEqual(sampleObject(o, doc.timeline, 2.5).position, [0, 0, 2]);
+  assert.deepEqual(sampleObject(o, doc.timeline, 9).position, [0, 0, -1]);
+  // chaining: the next move starts where the last one ended
+  ({ doc } = applyOps(doc, { op: 'anim.move', id: 'hero', by: [2, 0, 0], turn: [0, 90, 0], at: 4, over: 1 }));
+  assert.deepEqual(doc.objects[0].anim.at(-1).position, [2, 0, -1]);
+  assert.deepEqual(doc.objects[0].anim.at(-1).rotation, [0, 90, 0]);
+  assert.equal(doc.timeline.duration, 5);
+  // moving an animated object shifts the whole move; the scene file round-trips
+  ({ doc } = applyOps(doc, { op: 'update', id: 'hero', move: [1, 0, 0] }));
+  assert.deepEqual(doc.objects[0].anim.map((k) => k.position[0]), [1, 1, 3]);
+  assert.deepEqual(migrate(JSON.parse(JSON.stringify(doc))).objects[0].anim, doc.objects[0].anim);
+  ({ doc } = applyOps(doc, { op: 'anim.remove', id: 'hero' }));
+  assert.equal(doc.objects[0].anim, undefined);
+  assert.throws(() => applyOps(doc, { op: 'anim.move', id: 'hero', at: 0, over: 1 }), /needs to, by/);
 });
