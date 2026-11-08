@@ -9,10 +9,11 @@ import { store } from './store.js';
 const OPEN_KEY = 'cc-chat-open';
 
 export function mountPrompt(root, { viewport, corner }) {
-  // ---------- header ----------
+  // ---------- status line (under the input box) ----------
   const dot = h('span.cc-dot');
   const statusText = h('span.chat-status-text');
-  const head = h('div.chat-head', {}, dot, statusText);
+  const selEl = h('span.cc-mono.chat-sel');
+  const head = h('div.chat-status', {}, dot, statusText, h('span.cc-spacer'), selEl);
 
   // ---------- thread ----------
   const thread = h('div.chat-thread', { role: 'log', 'aria-live': 'polite' });
@@ -23,13 +24,11 @@ export function mountPrompt(root, { viewport, corner }) {
   );
 
   // ---------- composer ----------
-  const ctxSel = h('span.cc-chip.chat-ctx');
-  const ctxTime = h('span.cc-chip.chat-ctx.cc-mono');
-  const input = h('textarea.chat-input', { rows: 1, placeholder: 'Ask your agent to change the scene…', spellcheck: false });
+  const input = h('textarea.chat-input', { rows: 1, placeholder: 'Ask your agent…', spellcheck: false, 'aria-label': 'Message your agent' });
   const send = h('button.cc-btn.cc-btn--primary.cc-btn--icon.chat-send', { type: 'button', title: 'Send (Enter) · new line (Shift+Enter)', disabled: true }, icon('send'));
-  const composer = h('div.chat-composer', {}, h('div.chat-ctx-row', {}, ctxSel, ctxTime), h('div.chat-input-row', {}, input, send));
+  const composer = h('div.chat-composer', {}, h('div.chat-input-row', {}, input, send), head);
 
-  const panel = h('section.cc-panel.chat', { 'aria-label': 'Chat with your agent' }, head, thread, composer);
+  const panel = h('section.cc-panel.chat', { 'aria-label': 'Chat with your agent' }, thread, composer);
   root.append(panel);
 
   // one sidebar toggle in the top-right menu: outline when closed, filled when open.
@@ -105,7 +104,7 @@ export function mountPrompt(root, { viewport, corner }) {
 
   function statusEl(p) {
     const busy = p.status === 'taken' && (store.state.working || store.state.agent);
-    if (p.status === 'done') return h('span.chat-meta.is-done', {}, icon('check'), 'done');
+    if (p.status === 'done') return null; // done shows nothing
     if (p.status === 'pending') return h('span.chat-meta', {}, icon('clock'), 'queued');
     if (busy) return h('span.chat-meta.is-busy', {}, h('span.cc-spin'), 'working');
     return h('span.chat-meta.is-stale', {}, 'no reply yet');
@@ -120,10 +119,9 @@ export function mountPrompt(root, { viewport, corner }) {
       thread.append(el);
     }
     el.dataset.status = p.status;
-    el.replaceChildren(
-      h('div.chat-bubble', {}, p.text),
-      h('div.chat-foot', {}, h('span.chat-ctxline', {}, ctxLine(p.context)), statusEl(p)),
-    );
+    const st = statusEl(p);
+    el.title = [p.at ? time(p.at) : '', ctxLine(p.context)].filter(Boolean).join(' · ');
+    el.replaceChildren(h('div.chat-bubble', {}, p.text), ...(st ? [h('div.chat-foot', {}, st)] : []));
     empty.remove();
     if (stick) scrollToEnd();
   }
@@ -146,8 +144,7 @@ export function mountPrompt(root, { viewport, corner }) {
     const cls = ['chat-msg', 'chat-msg--agent'];
     if (m.kind === 'error') cls.push('is-error');
     if (m.kind === 'working') cls.push('is-working');
-    thread.append(h(`div.${cls.join('.')}`, {},
-      h('div.chat-who', {}, h('span', {}, m.from === 'system' ? 'Canvas' : 'Agent'), h('span.chat-time', {}, time(m.at))),
+    thread.append(h(`div.${cls.join('.')}`, { title: `${m.from === 'system' ? 'Canvas' : 'Agent'} · ${time(m.at)}` },
       h('div.chat-text', {}, m.text)));
     empty.remove();
     if (!open && live) {
@@ -180,11 +177,8 @@ export function mountPrompt(root, { viewport, corner }) {
       : working ? 'Your agent is working on a prompt. New prompts queue until it is done.'
       : `Prompts queue until your agent listens. Ask it to "listen to the canvas"${listen ? '' : ' (runs canvas wait)'}.`;
     const sel = store.state.selection;
-    ctxSel.hidden = !sel;
-    ctxSel.textContent = sel ? `@${sel}` : '';
-    ctxSel.title = 'The selected object is sent with your message';
-    ctxTime.textContent = `${store.state.time.toFixed(1)}s · ${store.state.view}`;
-    ctxTime.title = 'The playhead, view and camera are sent with your message';
+    selEl.textContent = sel ? `@${sel}` : '';
+    selEl.title = 'The selected object, the playhead and the camera are sent with your message';
   }
   store.on('state', (c) => {
     if (c.agent || c.working || c.listen || c.selection || c.time || c.view) refresh();
