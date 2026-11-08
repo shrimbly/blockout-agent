@@ -9,6 +9,10 @@ const FPS_PRESETS = [24, 25, 30, 60];
 const SIZES = [[1280, 720], [1920, 1080], [3840, 2160], [1080, 1920], [1080, 1080], [1440, 1080]];
 const RETIME_KEY = 'cc-retime';
 
+/** Run fn only when key changed since the last call for this element. Refreshes run every frame while
+ *  playing; rebuilding a button's children under the pointer swallows clicks, and rebuilding a select closes it. */
+function changed(el, key, fn) { key = JSON.stringify(key); if (el._ccKey !== key) { el._ccKey = key; fn(); } }
+
 /** A tiny inline SVG of an ease curve, for buttons. */
 export function easeSvg(ease, size = 14) {
   const b = resolveEase(ease);
@@ -219,8 +223,13 @@ export function mountTimeline(root, { viewport, exporter }) {
     timeNow.textContent = t.toFixed(2);
     timeDur.textContent = ` / ${tl.duration.toFixed(2)} s`;
     frameEl.textContent = `f${Math.round(t * tl.fps)}`;
-    playBtn.replaceChildren(icon(store.state.playing ? 'pause' : 'play'));
-    playBtn.title = store.state.playing ? 'Pause (Space)' : 'Play (Space)';
+    // only swap the icon when play state flips: refresh runs every frame while playing, and replacing the
+    // icon under the pointer between mousedown and mouseup swallows the click.
+    if (playBtn.dataset.playing !== String(!!store.state.playing)) {
+      playBtn.dataset.playing = String(!!store.state.playing);
+      playBtn.replaceChildren(icon(store.state.playing ? 'pause' : 'play'));
+      playBtn.title = store.state.playing ? 'Pause (Space)' : 'Play (Space)';
+    }
     loopBtn.setActive(store.state.loop);
     viewSeg.value = store.state.view;
     keyBtn.setActive(store.state.camDirty);
@@ -235,7 +244,7 @@ export function mountTimeline(root, { viewport, exporter }) {
       const last = i === sorted.length - 1;
       keyTime.textContent = `${k.t.toFixed(2)} s`;
       keyTime.title = `Key ${k.id}`;
-      easeGlyph.innerHTML = easeSvg(last ? 'linear' : k.ease);
+      changed(easeGlyph, last ? 'linear' : k.ease, () => { easeGlyph.innerHTML = easeSvg(last ? 'linear' : k.ease); });
       easeName_.textContent = last ? 'last key' : easeName(k.ease);
       easeBtn.disabled = last;
       easeBtn.title = last ? 'Last key: no segment after it' : 'Easing from this key to the next (opens the curve editor)';
@@ -366,8 +375,8 @@ function mountCurveEditor(root, { updateKey, keys, onToggle, anchor }) {
     const tg = target();
     title.textContent = tg ? tg.label : '';
     const current = tg ? easeName(tg.ease) : '';
-    presets.replaceChildren(...Object.keys(EASES).filter((k) => !(mode === 'speed' && k === 'hold')).map((k) =>
-      button({ label: k, kind: 'ghost', active: k === current, onClick: () => commit(k) })));
+    changed(presets, [mode, current], () => presets.replaceChildren(...Object.keys(EASES).filter((k) => !(mode === 'speed' && k === 'hold')).map((k) =>
+      button({ label: k, kind: 'ghost', active: k === current, onClick: () => commit(k) }))));
     help.textContent = mode === 'speed'
       ? 'Remaps time across the whole shot: ease-in starts slow and ends fast. Applied on top of each segment ease.'
       : 'How the camera travels between the two keys. The shaded area is its speed. Drag the orange handles.';
@@ -447,11 +456,15 @@ function mountShotSettings(root, { anchor, keys, openSpeed }) {
     const opts = SIZES.map(([w, hh]) => `${w}x${hh}`);
     if (!opts.includes(cur)) opts.unshift(cur);
     const ratio = (w, hh) => { const g = (a, b) => (b ? g(b, a % b) : a); const d = g(w, hh); return `${w / d}:${hh / d}`; };
-    sizeSel.replaceChildren(...opts.map((o) => { const [w, hh] = o.split('x').map(Number); return h('option', { value: o }, `${w} × ${hh} · ${ratio(w, hh)}`); }));
-    sizeSel.value = cur;
+    changed(sizeSel, [opts, cur], () => {
+      sizeSel.replaceChildren(...opts.map((o) => { const [w, hh] = o.split('x').map(Number); return h('option', { value: o }, `${w} × ${hh} · ${ratio(w, hh)}`); }));
+      sizeSel.value = cur;
+    });
     const sp = tl.speed ?? 'linear';
-    speedBtn.innerHTML = easeSvg(sp);
-    speedBtn.append(h('span', {}, easeName(sp)), icon('chevronDown'));
+    changed(speedBtn, sp, () => {
+      speedBtn.innerHTML = easeSvg(sp);
+      speedBtn.append(h('span', {}, easeName(sp)), icon('chevronDown'));
+    });
     const n = keys().length;
     foot.textContent = `${Math.round(tl.duration * tl.fps)} frames · ${n} key${n === 1 ? '' : 's'}`;
   }

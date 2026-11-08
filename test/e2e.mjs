@@ -174,6 +174,16 @@ try {
   cli('undo');
   ok(JSON.parse(cli('doc')).objects.length > 0, 'undo brings the old scene back after New scene');
 
+  // the play button pauses while playing (its icon must not be rebuilt every frame)
+  await page.click('.tl-bar button[title^="Play"]').catch(async () => page.keyboard.press(' '));
+  await page.waitForTimeout(300);
+  ok(await page.evaluate(() => window.canvas.store.state.playing), 'play button starts playback');
+  await page.mouse.move(0, 0);
+  const pb = await page.$('button[title^="Pause"]');
+  await pb.click({ delay: 120 });
+  await page.waitForTimeout(150);
+  ok(!(await page.evaluate(() => window.canvas.store.state.playing)), 'pause button stops playback');
+
   // new chat clears the thread
   ok(await page.$$eval('.chat-msg', (els) => els.length) > 0, 'thread has messages before a new chat');
   await page.click('.chat-new');
