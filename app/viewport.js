@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
 import { buildGeometry } from './geometry.js';
-import { sampleCamera, sampleObject } from '/core/curves.js';
+import { isCut, sampleCamera, sampleObject } from '/core/curves.js';
 import { store } from './store.js';
 
 const DEG = Math.PI / 180;
@@ -147,8 +147,9 @@ export class Viewport {
     this.rig.add(this.rigLines);
     this.aimLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), line(0xff5a1f, 0.6));
     this.targetDot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff5a1f }));
-    this.path = new THREE.Line(new THREE.BufferGeometry(), line(0xff5a1f, 0.7));
-    this.targetPath = new THREE.Line(new THREE.BufferGeometry(), line(0xff5a1f, 0.25));
+    // Segments rather than one polyline, so the path can break at a cut instead of drawing the jump.
+    this.path = new THREE.LineSegments(new THREE.BufferGeometry(), line(0xff5a1f, 0.7));
+    this.targetPath = new THREE.LineSegments(new THREE.BufferGeometry(), line(0xff5a1f, 0.25));
     this.keyDots = new THREE.Group();
     this.helpers.add(this.rig, this.aimLine, this.targetDot, this.path, this.targetPath, this.keyDots);
   }
@@ -305,11 +306,19 @@ export class Viewport {
     const tl = store.doc?.timeline;
     if (!tl) return;
     const N = Math.max(2, Math.ceil(tl.duration * 30));
+    const keys = [...tl.keys].sort((a, b) => a.t - b.t);
     const pts = [], tps = [];
+    let prev = null;
     for (let i = 0; i <= N; i++) {
       const s = sampleCamera(tl, (i / N) * tl.duration);
       if (!s) break;
-      pts.push(new THREE.Vector3(...s.position)); tps.push(new THREE.Vector3(...s.target));
+      // During a hold the camera stands still and then cuts: draw no line across the jump (also when
+      // the two keys of a cut are closer together than one sample).
+      if (prev && !keys.slice(prev.segment, Math.max(prev.segment + 1, s.segment)).some(isCut)) {
+        pts.push(new THREE.Vector3(...prev.position), new THREE.Vector3(...s.position));
+        tps.push(new THREE.Vector3(...prev.target), new THREE.Vector3(...s.target));
+      }
+      prev = s;
     }
     this.path.geometry.dispose(); this.path.geometry = new THREE.BufferGeometry().setFromPoints(pts);
     this.targetPath.geometry.dispose(); this.targetPath.geometry = new THREE.BufferGeometry().setFromPoints(tps);

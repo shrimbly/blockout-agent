@@ -72,7 +72,10 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 ### Eases
 
 `linear ease easeIn easeOut easeInOut slowIn slowOut snap anticipate overshoot hold`, or `[x1, y1, x2, y2]`
-(CSS cubic-bezier; x in 0–1, y may overshoot). `hold` = no motion until the next key.
+(CSS cubic-bezier; x in 0–1, y may overshoot). `hold` = no motion until the next key, then a hard cut
+to it. On camera keys a hold also splits the smooth path: the moves before and after the cut don't
+bend toward each other. For a cut between two moving shots, put shot B's first key one frame after
+shot A's last (hold) key.
 
 ## Example: a batch file
 

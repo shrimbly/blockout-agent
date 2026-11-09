@@ -102,6 +102,9 @@ function catmull(p0, p1, p2, p3, t) {
   return out;
 }
 
+/** True when the camera cuts away from this key (its ease is hold): the next key starts a new shot. */
+export const isCut = (key) => resolveEase(key?.ease) === 'hold';
+
 // Mirror an end point so the spline starts/ends without a kink.
 const extrap = (a, b) => [2 * a[0] - b[0], 2 * a[1] - b[1], 2 * a[2] - b[2]];
 
@@ -130,10 +133,14 @@ export function sampleCamera(timeline, t) {
   const span = Math.max(1e-6, b.t - a.t);
   const s = bezier(resolveEase(a.ease), clamp((tt - a.t) / span, 0, 1));
   const smooth = (timeline.interp ?? 'smooth') === 'smooth';
+  // A hold key ends a shot: the camera stays there, then cuts to the next key. The smooth path must not
+  // look across a cut, or each shot's move bends toward the other shot.
+  const prev = i > 0 && !isCut(keys[i - 1]) ? keys[i - 1] : null;
+  const next = !isCut(b) ? keys[i + 2] : null;
   const pick = (field) => {
     if (!smooth) return lerp3(a[field], b[field], s);
-    const p0 = keys[i - 1]?.[field] ?? extrap(a[field], b[field]);
-    const p3 = keys[i + 2]?.[field] ?? extrap(b[field], a[field]);
+    const p0 = prev?.[field] ?? extrap(a[field], b[field]);
+    const p3 = next?.[field] ?? extrap(b[field], a[field]);
     return catmull(p0, a[field], b[field], p3, s);
   };
   return {

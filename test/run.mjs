@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDoc, applyOps, migrate, PRIMITIVES } from '../core/doc.js';
-import { bezier, sampleCamera, sampleObject, resolveEase, EASES, remapTime, fovToLens, lensToFov } from '../core/curves.js';
+import { bezier, sampleCamera, sampleObject, resolveEase, EASES, remapTime, fovToLens, lensToFov, isCut } from '../core/curves.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -71,6 +71,21 @@ test('camera sampling hits keys and respects ease and speed', () => {
   assert.ok(remapTime(tl, 1) < 1 && sampleCamera(tl, 1).position[0] < 1);
   tl.interp = 'smooth';
   const s = sampleCamera(tl, 4); assert.deepEqual(s.position, [4, 0, 0]);
+});
+
+test('a hold key is a clean cut: the smooth path on each side ignores the other shot', () => {
+  const tl = { duration: 4, interp: 'smooth', speed: 'linear', keys: [
+    { t: 0, position: [0, 0, 0], target: [0, 0, -5], fov: 40, ease: 'linear' },
+    { t: 2, position: [2, 0, 0], target: [2, 0, -5], fov: 40, ease: 'hold' }, // shot A ends: cut
+    { t: 2 + 1 / 24, position: [10, 0, 10], target: [10, 0, 5], fov: 30, ease: 'linear' }, // shot B starts a frame later
+    { t: 4, position: [10, 0, 14], target: [10, 0, 9], fov: 30, ease: 'linear' }] };
+  assert.ok(isCut(tl.keys[1]) && !isCut(tl.keys[0]));
+  const a = sampleCamera(tl, 1), b = sampleCamera(tl, 3);
+  assert.ok(Math.abs(a.position[2]) < 1e-9 && Math.abs(a.position[0] - 1) < 1e-9, `shot A stays on its own line (${a.position})`);
+  assert.ok(Math.abs(b.position[0] - 10) < 1e-9, `shot B stays on its own line (${b.position})`);
+  assert.deepEqual(sampleCamera(tl, 2).position, [2, 0, 0]); // last frame of shot A
+  assert.deepEqual(sampleCamera(tl, 2 + 1 / 24).position, [10, 0, 10]); // next frame is shot B
+  assert.equal(sampleCamera(tl, 2.02).fov, 40); // nothing blends during the cut
 });
 
 test('lens ↔ fov', () => { assert.ok(Math.abs(fovToLens(lensToFov(35)) - 35) < 1e-9); });
