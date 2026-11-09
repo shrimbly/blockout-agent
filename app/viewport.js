@@ -16,7 +16,10 @@ const SAFE = { top: 52, bottom: 124, side: 16, chat: 364 }; // keep the shot fra
 export class Viewport {
   constructor(stage) {
     this.stage = stage;
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false });
+    // Logarithmic depth: with a 5 cm near plane, a plain depth buffer can't tell apart surfaces a few
+    // millimetres apart once you zoom out (roads, lawns, rugs lying on the ground flicker and break up).
+    // Every renderer that draws the scene needs it, and custom shaders need the logdepthbuf chunks.
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: false, logarithmicDepthBuffer: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -66,8 +69,16 @@ export class Viewport {
     this.grid = new THREE.Mesh(new THREE.PlaneGeometry(600, 600, 60, 60).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,
       uniforms: { uColor: { value: new THREE.Color(0x000000) }, uFade: { value: 70 } },
-      vertexShader: `varying vec3 vWorld; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      vertexShader: `
+        #include <common>
+        #include <logdepthbuf_pars_vertex>
+        varying vec3 vWorld;
+        void main() {
+          vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w;
+          #include <logdepthbuf_vertex>
+        }`,
       fragmentShader: `
+        #include <logdepthbuf_pars_fragment>
         uniform vec3 uColor; uniform float uFade; varying vec3 vWorld;
         float line(float size, float width) {
           vec2 c = vWorld.xz / size; vec2 g = abs(fract(c - 0.5) - 0.5) / fwidth(c);
@@ -75,6 +86,7 @@ export class Viewport {
         }
         float axis(float v) { return 1.0 - min(abs(v) / fwidth(v) / 1.5, 1.0); }
         void main() {
+          #include <logdepthbuf_fragment>
           float d = length(vWorld.xz - cameraPosition.xz);
           float fade = 1.0 - smoothstep(uFade * 0.25, uFade, d);
           float a = max(line(1.0, 1.0) * 0.07, line(5.0, 1.1) * 0.15);
@@ -455,7 +467,7 @@ export class Viewport {
   renderShot(t, width, height, { grid, view = 'shot', from, target, fov } = {}) {
     if (!this.off || this.off.w !== width || this.off.h !== height) {
       this.off?.renderer.dispose();
-      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, logarithmicDepthBuffer: true });
       renderer.setPixelRatio(1);
       renderer.setSize(width, height, false);
       renderer.shadowMap.enabled = true;

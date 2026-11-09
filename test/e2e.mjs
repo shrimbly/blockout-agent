@@ -282,6 +282,28 @@ try {
   // renders
   const snap = cli('snapshot', '--t', '1');
   ok(fs.existsSync(snap) && fs.statSync(snap).size > 10000, 'snapshot writes a PNG');
+  // flat objects a few millimetres apart stay clean when seen from far away (no depth fighting).
+  // The top one is added first, so with too little depth precision the one underneath wins the ties.
+  cli('op', JSON.stringify([
+    { op: 'add', type: 'plane', id: 'zf-top', w: 22, d: 22, position: [150, 0.01, 150], rotation: [0, 30, 0], color: '#333333' },
+    { op: 'add', type: 'plane', id: 'zf-under', w: 14, d: 14, position: [150, 0.005, 150], color: '#ff0000' },
+  ]));
+  const far = cli('snapshot', '--from', '260,35,260', '--target', '150,0,150', '--lens', '50');
+  const showing = await page.evaluate(async (src) => {
+    const img = new Image(); img.src = src; await img.decode();
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    // the plane underneath is pure red and fully covered: any reddish pixel means it shows through
+    const d = g.getImageData(0, 0, img.width, img.height).data;
+    let red = 0, grey = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] > 90 && d[i] > 2 * d[i + 1] && d[i] > 2 * d[i + 2]) red++;
+      else if (d[i] < 90 && Math.abs(d[i] - d[i + 1]) < 12) grey++;
+    }
+    return red / Math.max(1, red + grey);
+  }, `data:image/png;base64,${fs.readFileSync(far).toString('base64')}`);
+  ok(showing < 0.005, `flat objects 5 mm apart stay clean from far away (${(showing * 100).toFixed(1)}% of the top plane shows the one under it)`);
+  cli('op', JSON.stringify([{ op: 'remove', id: 'zf-under' }, { op: 'remove', id: 'zf-top' }]));
   const board = cli('storyboard', '--frames', '4', '--cols', '2');
   ok(fs.existsSync(board), 'storyboard writes a PNG');
   const exp = cli('export', '--width', '320', '--height', '180');
