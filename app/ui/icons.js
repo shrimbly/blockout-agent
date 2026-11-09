@@ -6,6 +6,7 @@ export const ICONS = {
   pause: s('<path d="M5.5 3.5v9M10.5 3.5v9"/>'),
   start: s('<path d="M4 3.5v9M12 3.5v9L6 8z"/>'),
   key: s('<path d="M8 2.5 13.5 8 8 13.5 2.5 8z"/>'),
+  cut: s('<circle cx="4.5" cy="11.5" r="2"/><circle cx="11.5" cy="11.5" r="2"/><path d="M6 10 12 2.5M10 10 4 2.5"/>'),
   keyAdd: s('<path d="M7 3 11.5 7.5 7 12 2.5 7.5z"/><path d="M12.5 10.5v4M10.5 12.5h4"/>'),
   camera: s('<rect x="1.5" y="4.5" width="9" height="7" rx="1.5"/><path d="m10.5 7 4-2v6l-4-2"/>'),
   orbit: s('<circle cx="8" cy="8" r="2"/><ellipse cx="8" cy="8" rx="6.5" ry="3"/>'),

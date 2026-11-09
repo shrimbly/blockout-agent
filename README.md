@@ -61,6 +61,7 @@ shows "no reply yet" instead of spinning forever, and is closed as soon as the a
 | `F` · `Shift D` · `⌫` · `Esc` | frame · duplicate · delete · deselect |
 | `C` | toggle **Free** (orbit the set, see the camera path) and **Shot** (look through the timeline camera, letterboxed to the export size) |
 | `K` | key the current view at the playhead. In Shot view, orbit to reframe, then `K`. |
+| `X` | cut at the playhead: the shot ends on this frame and a new one starts on the next, from the same framing (re-frame it, then `K`). Drag either half of a cut to move it. |
 | `Space` · `← →` · `Home` | play · step a frame (Shift: 1 s) · start |
 | `⌘Z` / `⇧⌘Z` | undo / redo (also undoes agent changes) |
 

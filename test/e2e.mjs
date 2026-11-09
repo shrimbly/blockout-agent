@@ -239,6 +239,32 @@ try {
   const freePose = await page.evaluate(() => ({ p: window.canvas.viewport.freeCam.position.toArray(), f: window.canvas.viewport.freeCam.fov }));
   ok(freePose.p.every((v, i) => Math.abs(v - shotPose.p[i]) < 1e-3) && Math.abs(freePose.f - shotPose.f) < 1e-3, 'back to free with a key selected keeps the shot position and lens');
 
+  // Cut at the playhead: this shot ends on the frame, the next starts a frame later from the same framing
+  const tlBefore = JSON.parse(cli('doc')).timeline, fr = tlBefore.fps;
+  let tc = null;
+  for (let f = Math.round((tlBefore.duration * fr) / 2); f < tlBefore.duration * fr - 2; f++) {
+    if (!tlBefore.keys.some((k) => Math.abs(k.t - f / fr) < 2.5 / fr)) { tc = +(f / fr).toFixed(3); break; }
+  }
+  cli('seek', String(tc)); await page.waitForTimeout(150);
+  await page.click('.tl-bar button[title^="Cut at the playhead"]');
+  await page.waitForTimeout(400);
+  const tlCut = JSON.parse(cli('doc')).timeline;
+  const ka = tlCut.keys.find((k) => Math.abs(k.t - tc) < 1e-3), kb = tlCut.keys.find((k) => Math.abs(k.t - (tc + 1 / fr)) < 2e-3);
+  ok(tlCut.keys.length === tlBefore.keys.length + 2 && ka?.ease === 'hold' && !!kb && kb.position.every((v, i) => Math.abs(v - ka.position[i]) < 1e-6),
+    'Cut adds a hold key at the playhead and starts the next shot a frame later from the same framing');
+  ok(await page.evaluate(() => window.canvas.store.state.key) === kb?.id, 'after a cut the new shot\'s first key is selected');
+  // the pair is drawn as one split key either side of the cut line: each half selects its own key
+  const tb = await page.locator('.tl-track').boundingBox();
+  const txOf = (t) => tb.x + 14 + (t / tlCut.duration) * (tb.width - 28);
+  const cutX = (txOf(ka.t) + txOf(kb.t)) / 2, midY = tb.y + tb.height / 2 + 6;
+  await page.mouse.click(cutX - 3, midY); await page.waitForTimeout(120);
+  const leftSel = await page.evaluate(() => window.canvas.store.state.key);
+  await page.mouse.click(cutX + 4, midY); await page.waitForTimeout(120);
+  const rightSel = await page.evaluate(() => window.canvas.store.state.key);
+  ok(leftSel === ka.id && rightSel === kb.id, 'left half of a split key selects the end of the shot, right half the start of the next');
+  cli('undo');
+  ok(JSON.parse(cli('doc')).timeline.keys.length === tlBefore.keys.length, 'one undo removes the whole cut');
+
   // the play button pauses while playing (its icon must not be rebuilt every frame)
   await page.click('.tl-bar button[title^="Play"]').catch(async () => page.keyboard.press(' '));
   await page.waitForTimeout(300);

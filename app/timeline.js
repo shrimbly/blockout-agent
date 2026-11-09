@@ -1,7 +1,7 @@
 // Camera timeline: transport, keyframe track, selected-key controls and the easing / speed curve editor.
 
 import { h, button, segmented, number, select, icon, toast, affix, panel, toggle as onOff } from './ui/kit.js';
-import { EASES, bezier, bezierSpeed, resolveEase, easeName, sampleCamera, fovToLens, lensToFov } from '/core/curves.js';
+import { EASES, bezier, bezierSpeed, resolveEase, easeName, sampleCamera, fovToLens, lensToFov, isCut } from '/core/curves.js';
 import { store } from './store.js';
 
 const PAD = 14;
@@ -36,6 +36,7 @@ export function mountTimeline(root, { viewport, exporter }) {
     value: store.state.view, onChange: (v) => store.set({ view: v }),
   });
   const keyBtn = button({ icon: 'keyAdd', label: 'Key', title: 'Key the current view at the playhead (K)', onClick: () => keyFromView() });
+  const cutBtn = button({ icon: 'cut', label: 'Cut', title: 'Cut at the playhead: this shot ends here and a new one starts on the next frame (X)', onClick: () => cutHere() });
   // Key the selected object where it is now, at the playhead. Once it has a key, dragging it with the
   // gizmo at another time adds the next key, so a move is: key, scrub, drag.
   const objKeyLabel = h('span');
@@ -65,7 +66,7 @@ export function mountTimeline(root, { viewport, exporter }) {
   const exportBtn = button({ icon: 'film', label: 'Export', kind: 'primary', title: 'Render the blockout video (mp4)', onClick: () => exporter.exportVideo().catch((e) => toast(e.message, { kind: 'error' })) });
 
   const bar = h('div.tl-bar',
-    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, lensField, keyGroup, objKeyBtn,
+    {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, cutBtn, lensField, keyGroup, objKeyBtn,
     h('span.cc-spacer'), shotBtn, exportBtn);
 
   // ---------- track ----------
@@ -81,7 +82,36 @@ export function mountTimeline(root, { viewport, exporter }) {
   const tOf = (x) => Math.max(0, Math.min(dur(), ((x - PAD) / (width() - PAD * 2)) * dur()));
   const snap = (t, e) => (e?.shiftKey ? t : Math.round(t * fps()) / fps());
   const keys = () => [...store.doc.timeline.keys].sort((a, b) => a.t - b.t);
-  const keyAt = (x) => keys().find((k) => Math.abs(xOf(drag?.kind === 'key' && drag.id === k.id ? drag.t : k.t) - x) < 8);
+  // While a key is dragged, it (and the other half of its cut) is drawn at the drag time.
+  const liveKeys = () => keys().map((k) => (drag?.kind === 'key' && drag.id === k.id ? { ...k, t: drag.t }
+    : drag?.kind === 'key' && drag.partner === k.id ? { ...k, t: drag.t + drag.offset } : k)).sort((a, b) => a.t - b.t);
+  /** Cuts: every hold key (except the last) ends a shot, and the camera cuts to the next key. A hold key and
+   *  the next key within a frame or so of each other are one "split" key either side of the cut line. */
+  const cutsOf = (ks) => {
+    const out = [];
+    for (let i = 0; i < ks.length - 1; i++) {
+      if (!isCut(ks[i])) continue;
+      const a = ks[i], b = ks[i + 1], tight = b.t - a.t <= 1.5 / fps() + 1e-6;
+      out.push({ a, b, tight, x: tight ? (xOf(a.t) + xOf(b.t)) / 2 : xOf(b.t) - 3 });
+    }
+    return out;
+  };
+  const keyXs = (ks) => {
+    const xs = new Map(ks.map((k) => [k.id, xOf(k.t)]));
+    for (const c of cutsOf(ks)) { if (c.tight) xs.set(c.a.id, c.x - 3); xs.set(c.b.id, c.x + 4); }
+    return xs;
+  };
+  const keyAt = (x) => {
+    const ks = liveKeys(), xs = keyXs(ks);
+    let best = null, bd = 8;
+    for (const k of ks) { const d = Math.abs(xs.get(k.id) - x); if (d < bd) { bd = d; best = k; } }
+    return best && keys().find((k) => k.id === best.id);
+  };
+  /** The other key of a tight cut, so dragging either half moves the cut as one. */
+  const cutPartner = (k) => {
+    const c = cutsOf(keys()).find((c) => c.tight && (c.a.id === k.id || c.b.id === k.id));
+    return c ? (c.a.id === k.id ? c.b : c.a) : null;
+  };
 
   const selObj = () => (store.state.selection && store.object(store.state.selection)) || null;
   const okeys = () => selObj()?.anim || [];
@@ -100,7 +130,8 @@ export function mountTimeline(root, { viewport, exporter }) {
       store.set({ playing: false });
       seek(ok.t);
     } else if (k && e.button === 0) {
-      drag = { kind: 'key', id: k.id, t: k.t, t0: k.t, moved: false };
+      const p = cutPartner(k);
+      drag = { kind: 'key', id: k.id, t: k.t, t0: k.t, moved: false, partner: p?.id, offset: p ? p.t - k.t : 0 };
       store.set({ key: k.id });
       seek(k.t);
     } else if (e.button === 0) {
@@ -121,7 +152,9 @@ export function mountTimeline(root, { viewport, exporter }) {
     const d = drag; drag = null;
     if (!d) return;
     if (d.kind === 'key' && d.moved && Math.abs(d.t - d.t0) > 1e-4) {
-      store.op({ op: 'key.update', id: d.id, t: d.t }, 'retime key').catch(() => {});
+      const ops = [{ op: 'key.update', id: d.id, t: +d.t.toFixed(3) }];
+      if (d.partner) ops.push({ op: 'key.update', id: d.partner, t: +(d.t + d.offset).toFixed(3) });
+      store.op(ops, d.partner ? 'move cut' : 'retime key').catch(() => {});
     }
     if (d.kind === 'okey' && d.moved && Math.abs(d.t - d.t0) > 1e-4) {
       const k = store.object(d.id)?.anim?.find((x) => Math.abs(x.t - d.t0) < 1e-3);
@@ -150,6 +183,29 @@ export function mountTimeline(root, { viewport, exporter }) {
     store.set({ key: r.id, camDirty: false });
     toast(r.replaced ? `Updated key at ${t.toFixed(2)}s` : `Keyed camera at ${t.toFixed(2)}s`);
   }
+  /** Cut at the playhead: the current shot ends on this frame (a hold key with the camera as it is here) and
+   *  a new shot starts on the next frame from the same framing, selected so it can be re-framed. */
+  async function cutHere(t = store.state.time) {
+    const tl = store.doc.timeline;
+    if (!tl.keys.length) return toast('Key the camera first, then cut', { kind: 'error' });
+    const F = tl.fps, f = 1 / F;
+    t = Math.round(t * F) / F;
+    if (t > tl.duration - f) return toast('Move the playhead before the end of the shot to cut there', { kind: 'error' });
+    const ks = keys();
+    const here = ks.find((k) => Math.abs(k.t - t) < 1e-3);
+    if (here && isCut(here) && ks.some((k) => k.t > t && k.t - t <= 1.5 * f)) return toast(`There is already a cut at ${t.toFixed(2)}s`);
+    if (ks.some((k) => k.t > t + 1e-3 && k.t - t <= 1.5 * f)) return toast('A key sits on the next frame: move the playhead to cut', { kind: 'error' });
+    const s = sampleCamera(tl, t);
+    const r3 = (v) => +v.toFixed(3);
+    const pose = { position: s.position.map(r3), target: s.target.map(r3), fov: r3(s.fov), roll: r3(s.roll) };
+    const seg = ks[s.segment];
+    const ease = seg && !isCut(seg) && s.segment < ks.length - 1 ? seg.ease : 'easeInOut'; // the move carries on into the new shot
+    const next = r3(t + f);
+    const res = await store.op([{ op: 'key.add', t: r3(t), ...pose, ease: 'hold' }, { op: 'key.add', t: next, ...pose, ease }], 'cut');
+    store.set({ key: res[1].id, time: next, playing: false, camDirty: false });
+    const n = 1 + keys().filter((k) => isCut(k) && k.t < next - 1e-3).length;
+    toast(`Cut at ${t.toFixed(2)}s. Shot ${n} starts here with the same framing: re-frame it, then press K`);
+  }
   function updateKey(patch) {
     const id = store.state.key;
     if (!id) return;
@@ -174,6 +230,9 @@ export function mountTimeline(root, { viewport, exporter }) {
     const D = dur(), F = fps();
     const mid = H / 2 + 6;
 
+    const ks = liveKeys();
+    const cuts = cutsOf(ks), xs = keyXs(ks);
+
     // ruler
     ctx.font = `10px ${css('--cc-mono')}`;
     ctx.textBaseline = 'top';
@@ -188,11 +247,24 @@ export function mountTimeline(root, { viewport, exporter }) {
     for (let t = 0; t <= D + 1e-6; t += step) {
       const x = Math.round(xOf(t));
       ctx.fillRect(x, 0, 1, 6);
-      ctx.fillText(`${+t.toFixed(1)}s`, x + 3, 1);
+      const label = `${+t.toFixed(1)}s`, w = ctx.measureText(label).width;
+      if (!cuts.some((c) => x + 3 < c.x + 11 && x + 3 + w > c.x - 9)) ctx.fillText(label, x + 3, 1); // leave room for a cut's scissors
     }
-    // baseline
+    // shots and cuts: every hold key (but the last) ends a shot and the camera cuts to the next key.
+    // With at least one cut, shots get a faint alternating band and a name; the baseline breaks at each cut.
+    const edges = [PAD, ...cuts.map((c) => c.x), W - PAD];
+    ctx.fillStyle = text; ctx.globalAlpha = 0.045;
+    for (let i = 1; i < edges.length - 1; i += 2) ctx.fillRect(edges[i], 12, edges[i + 1] - edges[i], H - 12);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = line;
-    ctx.fillRect(PAD, mid, W - PAD * 2, 1);
+    for (let i = 0; i < edges.length - 1; i++) {
+      const x0 = edges[i] + (i ? 7 : 0), x1 = edges[i + 1] - (i < edges.length - 2 ? 7 : 0);
+      if (x1 > x0) ctx.fillRect(x0, mid, x1 - x0, 1);
+    }
+    // a long hold before a cut (the shot ends on a still): dotted from the hold key to the cut
+    ctx.strokeStyle = dim; ctx.setLineDash([2, 3]); ctx.beginPath();
+    for (const c of cuts) if (!c.tight && c.x - xs.get(c.a.id) > 10) { ctx.moveTo(xs.get(c.a.id) + 6, mid + 0.5); ctx.lineTo(c.x - 6, mid + 0.5); }
+    ctx.stroke(); ctx.setLineDash([]);
 
     // shot speed curve, faint, across the whole track
     const speed = resolveEase(store.doc.timeline.speed ?? 'linear');
@@ -204,11 +276,10 @@ export function mountTimeline(root, { viewport, exporter }) {
 
     // selected segment only: a soft "speed hump" showing how fast the camera moves from the selected key
     // to the next. Flat band = constant speed, a hill = speeds up then slows. Dotted = hold.
-    const ks = keys().map((k) => (drag?.kind === 'key' && drag.id === k.id ? { ...k, t: drag.t } : k)).sort((a, b) => a.t - b.t);
     const si = ks.findIndex((k) => k.id === store.state.key);
     if (si >= 0 && si < ks.length - 1) {
       const a = ks[si], b = ks[si + 1];
-      const x0 = xOf(a.t), x1 = xOf(b.t);
+      const x0 = xs.get(a.id), x1 = xs.get(b.id);
       const e = resolveEase(a.ease);
       if (e === 'hold') {
         ctx.strokeStyle = accent; ctx.globalAlpha = 0.8; ctx.setLineDash([2, 3]);
@@ -232,11 +303,31 @@ export function mountTimeline(root, { viewport, exporter }) {
       }
     }
 
-    // keys
+    // shot names, then the cut lines with a scissors tab over the ruler
+    if (cuts.length) {
+      ctx.font = `500 10px ${css('--cc-font')}`; ctx.fillStyle = dim;
+      for (let i = 0; i < edges.length - 1; i++) if (edges[i + 1] - edges[i] >= 56) ctx.fillText(`Shot ${i + 1}`, edges[i] + (i ? 7 : 2), 14);
+      ctx.font = `10px ${css('--cc-mono')}`;
+    }
+    const sunk = css('--cc-surface-sunk');
+    for (const c of cuts) {
+      const x = Math.round(c.x) + 0.5;
+      ctx.fillStyle = text; ctx.fillRect(x - 0.75, 12, 1.5, H - 12);
+      ctx.fillStyle = sunk; ctx.fillRect(x - 7, 0, 14, 12);
+      ctx.strokeStyle = text; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(x - 2.8, 8.6, 1.8, 0, Math.PI * 2); ctx.moveTo(x + 4.6, 8.6); ctx.arc(x + 2.8, 8.6, 1.8, 0, Math.PI * 2);
+      ctx.moveTo(x - 1.5, 7.2); ctx.lineTo(x + 2.8, 1.2); ctx.moveTo(x + 1.5, 7.2); ctx.lineTo(x - 2.8, 1.2);
+      ctx.stroke(); ctx.lineWidth = 1; ctx.lineCap = 'butt';
+    }
+
+    // keys. At a cut the pair becomes one split key: half square = the shot ends, half diamond = the next starts.
+    const cutA = new Map(cuts.filter((c) => c.tight).map((c) => [c.a.id, c])), cutB = new Map(cuts.map((c) => [c.b.id, c]));
     for (const k of ks) {
-      const x = xOf(k.t), sel = k.id === store.state.key, r = sel ? 6 : 5;
+      const x = xs.get(k.id), sel = k.id === store.state.key, r = sel ? 6 : 5;
       ctx.beginPath();
-      if (k.ease === 'hold') ctx.rect(x - r + 1, mid - r + 1, 2 * r - 2, 2 * r - 2);
+      if (cutA.has(k.id)) { const cx = Math.round(cutA.get(k.id).x) + 0.5; ctx.rect(cx - 1.5 - (r - 0.5), mid - r + 1, r - 0.5, 2 * r - 2); }
+      else if (cutB.has(k.id)) { const cx = Math.round(cutB.get(k.id).x) + 0.5; ctx.moveTo(cx + 1.5, mid - r); ctx.lineTo(cx + 1.5 + r, mid); ctx.lineTo(cx + 1.5, mid + r); ctx.closePath(); }
+      else if (k.ease === 'hold') ctx.rect(x - r + 1, mid - r + 1, 2 * r - 2, 2 * r - 2);
       else { ctx.moveTo(x, mid - r); ctx.lineTo(x + r, mid); ctx.lineTo(x, mid + r); ctx.lineTo(x - r, mid); ctx.closePath(); }
       ctx.fillStyle = sel ? accent : text;
       ctx.fill();
@@ -282,6 +373,7 @@ export function mountTimeline(root, { viewport, exporter }) {
     loopBtn.setActive(store.state.loop);
     viewSeg.value = store.state.view;
     keyBtn.setActive(store.state.camDirty);
+    cutBtn.disabled = !tl.keys.length;
     keyBtn.title = store.state.camDirty ? 'The camera moved: press K to key this framing' : 'Key the current view at the playhead (K)';
     shotDur.textContent = tl.duration.toFixed(2);
     shotFps.textContent = fmtFps(tl.fps);
@@ -329,7 +421,7 @@ export function mountTimeline(root, { viewport, exporter }) {
   store.on('doc', refresh);
   store.on('state', refresh);
   new ResizeObserver(draw).observe(track);
-  return { refresh, keyFromView, seek, deleteKey, draw };
+  return { refresh, keyFromView, cutHere, seek, deleteKey, draw };
 }
 
 /** Popover with a draggable cubic-bezier for the segment at the playhead, or the shot-wide speed curve. */
