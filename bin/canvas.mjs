@@ -8,7 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PRIMITIVES, createDoc } from '../core/doc.js';
-import { EASES } from '../core/curves.js';
+import { EASES, lensToFov } from '../core/curves.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = (process.env.CANVAS_URL || `http://127.0.0.1:${process.env.CANVAS_PORT || 5317}`).replace(/\/$/, '');
@@ -23,7 +23,7 @@ Server
   canvas down                               stop a server started with "up"
 
 Read the scene
-  canvas ls                                 one line per object and camera key (start here)
+  canvas ls [--prefix p]                    one line per object and camera key (start here); --prefix: only ids starting p
   canvas doc                                the full scene JSON
 
 Objects (meters, Y up, pivot at bottom centre, rotation in degrees)
@@ -58,6 +58,7 @@ Camera timeline
 
 Render (needs the canvas tab open)
   canvas snapshot [--t 2] [--view shot|free] [--out file.png]   PNG of one frame; prints its path
+          [--from x,y,z --target x,y,z [--lens 35]]           ...or from a camera of your own (the user's view is untouched)
   canvas storyboard [--frames 8] [--cols 4]                     contact sheet across the shot
   canvas export [--fps 24] [--width 1280 --height 720] [--grid on|off] [--name shot]
                                                                  blockout video (mp4); prints its path
@@ -76,7 +77,8 @@ Save and load (scenes/saved/<name>.json)
 
 Raw / batch
   canvas op '<json op or [ops]>'            e.g. canvas op '{"op":"add","type":"box","w":2}'
-  canvas ops <file.json>                    apply an array of ops atomically
+  canvas ops <file.json> [--scope prefix]   apply an array of ops atomically; --scope refuses any op that
+                                            touches an object outside that id prefix, or the camera/timeline
   canvas undo | redo
 `;
 
@@ -206,6 +208,21 @@ function openBrowser(url) {
 
 const runDir = () => path.join(ROOT, '.canvas');
 
+// A helper agent building one part of the scene passes --scope <prefix>: every object it adds is named with
+// that prefix and it can only change its own objects, never the camera, timeline, env or the whole scene.
+function checkScope(ops, prefix) {
+  const ok = (id) => typeof id === 'string' && id.startsWith(prefix);
+  const OBJ = new Set(['add', 'update', 'remove', 'duplicate', 'anim.key', 'anim.move', 'anim.remove']);
+  ops.forEach((o, i) => {
+    const where = `op ${i} (${o?.op})`;
+    if (o?.op === 'batch') return checkScope(o.ops || [], prefix);
+    if (!OBJ.has(o?.op)) throw new Error(`${where}: outside scope "${prefix}" (helpers may only add/change their own objects)`);
+    if (o.op === 'add') { if (!ok(o.id ?? o.name)) throw new Error(`${where}: name it "${prefix}…" (got ${JSON.stringify(o.id ?? o.name)})`); return; }
+    if (o.op === 'duplicate' && !ok(o.newId ?? o.name)) throw new Error(`${where}: name the copy "${prefix}…"`);
+    for (const id of [].concat(o.ids ?? o.id)) if (!ok(id)) throw new Error(`${where}: "${id}" is not one of yours (scope "${prefix}")`);
+  });
+}
+
 // ---------- commands ----------
 const commands = {
   help: () => out(HELP),
@@ -250,8 +267,9 @@ const commands = {
     out(`server: ${BASE}\nscene: ${s.scene}\nexports: ${s.exports}\ntabs open: ${s.tabs}\nagent listening: ${s.agent ? 'yes' : 'no'}${s.listen ? ' (listen mode on)' : ''}\nqueued prompts: ${s.queued}\nrev: ${s.rev}`);
   },
 
-  async ls() {
+  async ls({ flags = {} } = {}) {
     const s = await api('GET', '/api/summary');
+    if (flags.prefix) s.objects = s.objects.filter((o) => o.startsWith(String(flags.prefix)));
     const lines = [
       `scene "${s.meta.name}" ${s.meta.width}x${s.meta.height}, rev ${s.rev}, ${s.tabs} tab(s) open${s.agent ? '' : ''}`,
       `env: background ${s.env.background}, ground ${s.env.ground ? 'on' : 'off'}, grid ${s.env.grid ? 'on' : 'off'}, fog ${s.env.fog}`,
@@ -367,7 +385,11 @@ const commands = {
   async frame({ pos }) { out(await rpc('frame', { id: pos[0] || null })); },
 
   async snapshot({ flags }) {
-    const r = await rpc('snapshot', { t: flags.t != null ? num(flags.t) : undefined, view: flags.view, name: flags.out ? path.basename(String(flags.out)) : undefined, width: flags.width && num(flags.width), height: flags.height && num(flags.height) }, 60000);
+    if ((flags.from != null) !== (flags.target != null)) throw new Error('use --from and --target together (camera position and the point it looks at)');
+    const own = flags.from != null && flags.target != null
+      ? { from: vec(flags.from), target: vec(flags.target), fov: flags.lens != null ? lensToFov(num(flags.lens)) : flags.fov != null ? num(flags.fov) : undefined }
+      : {};
+    const r = await rpc('snapshot', { t: flags.t != null ? num(flags.t) : undefined, view: flags.view, name: flags.out ? path.basename(String(flags.out)) : undefined, width: flags.width && num(flags.width), height: flags.height && num(flags.height), ...own }, 60000);
     out(copyOut(r.path, flags.out));
   },
   async storyboard({ flags }) {
@@ -419,8 +441,9 @@ const commands = {
     const ops = JSON.parse(pos.join(' '));
     out((await op(ops)).results);
   },
-  async ops({ pos }) {
+  async ops({ pos, flags }) {
     const ops = JSON.parse(fs.readFileSync(pos[0], 'utf8'));
+    if (flags.scope) checkScope(Array.isArray(ops) ? ops : [ops], String(flags.scope));
     out((await op(ops)).results);
   },
   async save({ pos, flags }) {

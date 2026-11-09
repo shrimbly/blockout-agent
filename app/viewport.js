@@ -452,7 +452,7 @@ export class Viewport {
    * Render the shot camera at time t into an offscreen canvas of width × height.
    * Helpers and gizmos are hidden; the grid follows opts.grid (default: the scene setting).
    */
-  renderShot(t, width, height, { grid, view = 'shot' } = {}) {
+  renderShot(t, width, height, { grid, view = 'shot', from, target, fov } = {}) {
     if (!this.off || this.off.w !== width || this.off.h !== height) {
       this.off?.renderer.dispose();
       const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -463,7 +463,9 @@ export class Viewport {
       this.off = { renderer, w: width, h: height, cam: new THREE.PerspectiveCamera(40, width / height, 0.05, 2000) };
     }
     const { renderer, cam } = this.off;
-    if (view === 'free') { cam.position.copy(this.freeCam.position); cam.quaternion.copy(this.freeCam.quaternion); cam.fov = this.freeCam.fov; }
+    if (from && target) { // a camera of the agent's own, e.g. to check one area without touching the user's view
+      cam.position.fromArray(from); cam.up.set(0, 1, 0); cam.lookAt(...target); cam.fov = fov || 40;
+    } else if (view === 'free') { cam.position.copy(this.freeCam.position); cam.quaternion.copy(this.freeCam.quaternion); cam.fov = this.freeCam.fov; }
     else this.poseCamera(cam, t);
     cam.aspect = width / height; cam.updateProjectionMatrix();
     const restore = [[this.helpers, this.helpers.visible], [this.gizmoHelper, this.gizmoHelper.visible], [this.grid, this.grid.visible]];

@@ -17,3 +17,7 @@
 - If hooks are disabled, use `node bin/canvas.mjs wait --timeout 600` as a background command and
   handle each prompt when it completes, then start another wait.
 - You can read the PNGs from `canvas snapshot` / `canvas storyboard` directly; do so to check your work.
+- Big builds with several separate areas: you are the orchestrator. Spawn `canvas-builder` helpers
+  (`.claude/agents/canvas-builder.md`, generated from `skills/camera-canvas/references/builder.md`) in
+  one message so they run in parallel, following `skills/camera-canvas/references/orchestration.md`.
+  Helpers never listen, reply or touch the camera; you keep the canvas chat, camera and final review.

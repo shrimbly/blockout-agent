@@ -30,13 +30,31 @@ If none is open, run `node bin/canvas.mjs open` and tell the user.
 ## 2. The working loop
 
 1. `canvas ls` to see objects (id, type, size, position) and camera keys.
-2. Change the scene with `add / set / dup / rm / env` and the camera with `key / key-set / timeline`.
-   For more than ~5 changes, write a JSON array of ops and apply it with `canvas ops file.json`
-   (atomic, one undo step). See [references/api.md](references/api.md).
-3. **Look at your work.** `canvas snapshot --t <s>` or `canvas storyboard` prints a PNG path: open it
-   with your image-reading tool and check composition, scale and overlaps. Do this before you say
-   you are done with anything visual.
+2. **Plan the whole change, then apply it in as few calls as possible.** Anything beyond one or two
+   edits goes in one JSON array of ops applied with `canvas ops file.json` (atomic, one undo step);
+   use single `add / set / key` commands only for quick one-offs. See [references/api.md](references/api.md).
+3. **Look at your work.** `canvas snapshot --t <s>`, `canvas snapshot --from x,y,z --target x,y,z`
+   (your own camera) or `canvas storyboard` prints a PNG path: open it with your image-reading tool and
+   check composition, scale and overlaps. Render the angles you need in parallel. Do this before you
+   say you are done with anything visual.
 4. Tell the user what changed in one or two lines (and `canvas say` it if the request came from the canvas).
+
+## 2b. Work fast without cutting corners
+
+Most of the time goes into round trips, so do as much per step as you can:
+
+- **Batch.** Plan the whole change, then apply it as one `canvas ops` file (any size; atomic; one undo).
+  Avoid long runs of single `add`/`set` calls.
+- **Run independent commands together.** Reads and checks that don't depend on each other (`ls`,
+  several snapshots, reading reference images) go in the same turn as parallel tool calls.
+- **Check from your own camera** with `canvas snapshot --from x,y,z --target x,y,z --lens 28`: it never moves
+  the user's view, so you can check while they look around.
+- **Fan out big, separable builds** to helper agents (several areas of ~10+ objects each): you plan the
+  layout and brief them, they build in parallel inside their own id prefix and bounds, you integrate, then
+  do the camera and review. Read [references/orchestration.md](references/orchestration.md) first; it
+  says when it pays off (not for tweaks or one-area scenes, where it is slower), the brief to give, and
+  how to review. Camera, timeline, replies and `wait` always stay with you. Keep the user posted with
+  `canvas say --working --reply <id> "…"` at each stage (plan, building, joining up, camera).
 
 ## 3. Scene conventions
 

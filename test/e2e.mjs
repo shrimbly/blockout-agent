@@ -208,6 +208,26 @@ try {
   const keyFov = JSON.parse(cli('doc')).timeline.keys[0].fov;
   ok(Math.abs((await page.evaluate(() => window.canvas.viewport.freeCam.fov)) - keyFov) < 0.01, 'selecting a key puts the free view on its lens');
 
+  // orchestration helpers: scoped batches, per-area listing, snapshots from the agent's own camera
+  const fsx = await import('node:fs');
+  const scoped = path.join(dir, 'scoped.json');
+  fsx.writeFileSync(scoped, JSON.stringify([{ op: 'add', type: 'box', name: 'zone-a-wall', w: 2 }, { op: 'add', type: 'box', name: 'zone-a-roof', position: [0, 1, 0] }]));
+  cli('ops', scoped, '--scope', 'zone-a-');
+  ok(/zone-a-wall/.test(cli('ls', '--prefix', 'zone-a-')) && !/tower/.test(cli('ls', '--prefix', 'zone-a-')), 'ls --prefix lists one area');
+  fsx.writeFileSync(scoped, JSON.stringify([{ op: 'update', id: 'tower', h: 1 }]));
+  let refused = '';
+  try { cli('ops', scoped, '--scope', 'zone-a-'); } catch (e) { refused = String(e.stderr || e.message); }
+  ok(/not one of yours/.test(refused), 'ops --scope refuses changes to objects outside the prefix');
+  fsx.writeFileSync(scoped, JSON.stringify([{ op: 'key.add', t: 1, position: [1, 1, 1], target: [0, 0, 0] }]));
+  refused = '';
+  try { cli('ops', scoped, '--scope', 'zone-a-'); } catch (e) { refused = String(e.stderr || e.message); }
+  ok(/outside scope/.test(refused), 'ops --scope refuses camera changes');
+  const freeBefore = await page.evaluate(() => window.canvas.viewport.freeCam.position.toArray());
+  const own = cli('snapshot', '--from', '6,4,6', '--target', '0,1,0', '--lens', '28');
+  const freeAfter = await page.evaluate(() => window.canvas.viewport.freeCam.position.toArray());
+  ok(fsx.existsSync(own.trim()) && freeBefore.every((v, i) => v === freeAfter[i]), 'snapshot --from/--target renders without moving the user view');
+  cli('rm', 'zone-a-wall', 'zone-a-roof');
+
   // shot -> free with a key selected keeps the shot camera's position and lens
   const k0 = JSON.parse(cli('doc')).timeline.keys[0];
   await page.evaluate((id) => window.canvas.store.set({ key: id }), k0.id);

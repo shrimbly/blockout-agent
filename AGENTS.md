@@ -31,6 +31,10 @@ session with the selected object, playhead time and camera pose attached.
 
 ## Rules
 
+- Big requests with several independent areas: plan, then fan out to helper agents (Claude Code:
+  `.claude/agents/canvas-builder.md`), each limited to its own id prefix with `canvas ops --scope`. See
+  `skills/camera-canvas/references/orchestration.md`. Small edits: do them yourself in one batch.
+
 - Change the scene through the CLI or ops, not by editing three.js code. Edit `scenes/scene.json` by
   hand only for bulk rewrites (the server reloads it on save).
 - After visual changes, render `canvas snapshot` or `canvas storyboard` and look at the PNG before

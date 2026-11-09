@@ -124,3 +124,11 @@ test('objects move over time with anim.move and stay put without keys', () => {
   assert.equal(doc.objects[0].anim, undefined);
   assert.throws(() => applyOps(doc, { op: 'anim.move', id: 'hero', at: 0, over: 1 }), /needs to, by/);
 });
+
+test('the builder helper definition is generated from the skill reference', () => {
+  const ref = fs.readFileSync(path.join(ROOT, 'skills/camera-canvas/references/builder.md'), 'utf8');
+  const agent = fs.readFileSync(path.join(ROOT, '.claude/agents/canvas-builder.md'), 'utf8');
+  const body = ref.replace(/^# .*\n+(<!--[\s\S]*?-->\n+)?/, '');
+  assert.ok(agent.startsWith('---\nname: canvas-builder\n'), 'frontmatter');
+  assert.ok(agent.endsWith(body), 'run npm run skills:sync after editing references/builder.md');
+});

@@ -23,9 +23,9 @@ export function createRenderer(viewport) {
     return [w + (w % 2), hgt + (hgt % 2)];
   };
 
-  async function snapshot({ t = store.state.time, view = 'shot', name, width, height, grid } = {}) {
+  async function snapshot({ t = store.state.time, view = 'shot', name, width, height, grid, from, target, fov } = {}) {
     const [w, hh] = size({ width, height });
-    const canvas = viewport.renderShot(t, w, hh, { view, grid });
+    const canvas = viewport.renderShot(t, w, hh, { view, grid, from, target, fov });
     const blob = await toBlob(canvas);
     const file = name ? safeName(name).replace(/(\.png)?$/i, '.png') : `snapshot-${stamp()}-t${t.toFixed(2)}.png`;
     const r = await upload(blob, file);
