@@ -3,37 +3,38 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BODY_PARTS } from './people-data.js';
+import { BODY_MESH } from './people-data.js';
 import { PERSON_HEIGHT } from '/core/doc.js';
 
 const up = (g, y) => g.translate(0, y, 0);
-const V = (a) => new THREE.Vector3(...a);
-/** A limb tapering from radius ra at point a to rb at point b, with rounded ends (a lathe around a-b). */
-function taper(a, b, ra, rb) {
-  const A = V(a), Bv = V(b), L = A.distanceTo(Bv), pts = [];
-  for (let i = 0; i <= 3; i++) { const t = (-Math.PI / 2) * (1 - i / 3); pts.push(new THREE.Vector2(Math.cos(t) * rb, Math.sin(t) * rb)); }
-  for (let i = 0; i <= 3; i++) { const t = (Math.PI / 2) * (i / 3); pts.push(new THREE.Vector2(Math.cos(t) * ra, L + Math.sin(t) * ra)); }
-  pts[0].x = pts[pts.length - 1].x = 0; // closed poles
-  const g = new THREE.LatheGeometry(pts, 12);
-  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), A.clone().sub(Bv).normalize()));
-  return g.translate(Bv.x, Bv.y, Bv.z);
-}
-
-/** Builds a mannequin from fitted parts (see app/people-data.js), scaled so it is exactly h tall.
- *  About 4.5k triangles, so crowds stay cheap; smooth shading hides the low facet count. */
-function bodyMannequin(parts, h) {
-  const geos = parts.map(([kind, ...p]) => {
-    if (kind === 'ball') return new THREE.SphereGeometry(p[1], 12, 8).translate(...p[0]);
-    if (kind === 'limb') return taper(p[0], p[1], p[2], p[3]);
-    const g = new THREE.SphereGeometry(1, 16, 10).scale(...p[1]);
-    if (p[2]) g.applyQuaternion(new THREE.Quaternion(...p[2]).normalize());
-    return g.translate(...p[0]);
-  });
-  // Lathe and sphere both carry position, normal and uv, so they merge into one indexed mesh.
-  const g = mergeGeometries(geos);
-  g.computeBoundingBox();
-  const k = h / (g.boundingBox.max.y - g.boundingBox.min.y);
-  return g.translate(0, -g.boundingBox.min.y, 0).scale(k, k, k);
+const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+const BODY_CACHE = {};
+/** The unit-height figure for a body, decoded once. app/people-data.js holds its +x half; mirror the rest. */
+function bodyGeometry(body) {
+  if (!BODY_CACHE[body]) {
+    const { v, n: nb, i } = BODY_MESH[body];
+    const q = new Uint16Array(bytes(v).buffer), nq = new Int8Array(bytes(nb).buffer), half = new Uint16Array(bytes(i).buffer), n = q.length / 3;
+    const twin = new Uint16Array(n); // each vertex's mirror image; seam vertices (x = 0) are their own
+    let count = n;
+    for (let k = 0; k < n; k++) twin[k] = q[k * 3] ? count++ : k;
+    const pos = new Float32Array(count * 3), nor = new Float32Array(count * 3), index = new Uint16Array(half.length * 2);
+    for (let k = 0; k < n; k++) {
+      const x = q[k * 3] / 131070, y = q[k * 3 + 1] / 65535, z = q[k * 3 + 2] / 65535 - 0.5;
+      pos.set([x, y, z], k * 3); pos.set([-x, y, z], twin[k] * 3);
+      const nx = nq[k * 3] / 127, ny = nq[k * 3 + 1] / 127, nz = nq[k * 3 + 2] / 127;
+      nor.set([nx, ny, nz], k * 3); nor.set([-nx, ny, nz], twin[k] * 3);
+    }
+    index.set(half);
+    for (let t = 0; t < half.length; t += 3) index.set([twin[half[t]], twin[half[t + 2]], twin[half[t + 1]]], half.length + t);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    // normals come from the detailed surface the figure was reduced from, so its few triangles shade smoothly
+    g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+    g.setIndex(new THREE.BufferAttribute(index, 1));
+    g.userData.ownNormals = true;
+    BODY_CACHE[body] = g;
+  }
+  return BODY_CACHE[body];
 }
 
 export const BUILDERS = {
@@ -67,11 +68,11 @@ export const BUILDERS = {
     s.lineTo(ow / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.closePath();
     return new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 24 }).translate(0, 0, -d / 2);
   },
-  // An artist's mannequin (male, female or child) with proportions fitted to MakeHuman bodies, h tall
+  // A smooth low-poly human figure (male, female or child) simplified from MakeHuman bodies, h tall
   // (default: the body's usual height), facing +z.
   person({ h, body }) {
-    const b = BODY_PARTS[body] ? body : 'male';
-    return bodyMannequin(BODY_PARTS[b], h ?? PERSON_HEIGHT[b] ?? 1.8);
+    const b = BODY_MESH[body] ? body : 'male', H = h ?? PERSON_HEIGHT[b] ?? 1.8;
+    return bodyGeometry(b).clone().scale(H, H, H);
   },
 };
 
@@ -79,7 +80,7 @@ export function buildGeometry(type, params) {
   const b = BUILDERS[type];
   if (!b) throw new Error(`no builder for ${type}`);
   const g = b(params);
-  g.computeVertexNormals();
+  if (!g.userData.ownNormals) g.computeVertexNormals();
   g.computeBoundingBox();
   return g;
 }

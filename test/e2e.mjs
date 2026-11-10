@@ -185,7 +185,7 @@ try {
   await page.evaluate(() => window.canvas.store.set({ selection: 'walker' }));
   await page.waitForTimeout(150);
   const body = await page.evaluate(() => { const m = window.canvas.viewport.meshes.get('walker'); m.mesh.geometry.computeBoundingBox(); const bb = m.mesh.geometry.boundingBox; return { tris: m.mesh.geometry.index.count / 3, h: bb.max.y - bb.min.y, minY: bb.min.y, tint: m.mesh.material.emissive.getHex() }; });
-  ok(body.tris < 6000 && Math.abs(body.h - 1.8) < 0.01 && Math.abs(body.minY) < 1e-4, `person is a low-poly 1.8 m mannequin standing on the ground (${body.tris} tris, h=${body.h.toFixed(3)})`);
+  ok(body.tris < 4000 && Math.abs(body.h - 1.8) < 0.01 && Math.abs(body.minY) < 1e-4, `person is a low-poly 1.8 m figure standing on the ground (${body.tris} tris, h=${body.h.toFixed(3)})`);
   ok(body.tint !== 0, 'a selected person is tinted (people draw no edge lines)');
   cli('set', 'walker', '--body', 'female');
   await page.waitForTimeout(250);
