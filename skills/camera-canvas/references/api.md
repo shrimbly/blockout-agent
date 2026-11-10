@@ -67,7 +67,7 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 | ramp | w 1, h 1, d 2 (rises toward −z) | w,h,d |
 | stairs | w 1, h 1, d 1.5, steps 6 (rise toward −z) | w,h,d |
 | arch | w 2, h 2.5, d 0.5, t 0.4 (doorway, wall thickness t) | w,h,d |
-| person | h 1.8 (faces +z) | h |
+| person | body male\|female\|child (default male), h (default 1.8 / 1.65 / 1.3 by body); faces +z | h |
 
 ### Eases
 

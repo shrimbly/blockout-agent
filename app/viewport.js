@@ -253,7 +253,9 @@ export class Viewport {
       if (m.geoKey !== geoKey) {
         mesh.geometry.dispose(); edges.geometry.dispose();
         mesh.geometry = buildGeometry(o.type, o.params);
-        edges.geometry = new THREE.EdgesGeometry(mesh.geometry, 28);
+        // A body's fine creases would draw as stray lines, so people show selection with a tint instead.
+        m.tint = o.type === 'person';
+        edges.geometry = m.tint ? new THREE.BufferGeometry() : new THREE.EdgesGeometry(mesh.geometry, 28);
         m.geoKey = geoKey;
       }
       mesh.material.color.set(o.color);
@@ -282,6 +284,8 @@ export class Viewport {
       const sel = mid === id;
       m.edges.material.color.set(sel ? ACCENT : 0x000000);
       m.edges.material.opacity = sel ? 1 : 0.22;
+      m.mesh.material.emissive.set(sel && m.tint ? ACCENT : 0x000000);
+      m.mesh.material.emissiveIntensity = 0.35;
     }
     const m = id && this.meshes.get(id);
     if (m) this.gizmo.attach(m.mesh); else this.gizmo.detach();
@@ -493,7 +497,7 @@ export class Viewport {
     this.helpers.visible = false; this.gizmoHelper.visible = false;
     if (grid != null) this.grid.visible = !!grid;
     const sel = store.state.selection && this.meshes.get(store.state.selection);
-    if (sel) { sel.edges.material.color.set(0x000000); sel.edges.material.opacity = 0.22; }
+    if (sel) { sel.edges.material.color.set(0x000000); sel.edges.material.opacity = 0.22; sel.mesh.material.emissive.set(0x000000); }
     this.poseObjects(t);
     renderer.render(this.scene, cam);
     this.poseObjects(store.state.time);

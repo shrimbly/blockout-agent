@@ -115,6 +115,10 @@ registers it in `app/controls/index.js`, and open tabs reload automatically. See
 - `app/` is plain ES modules with three.js from `node_modules` via an import map. No build step.
 - Video export uses WebCodecs through [mediabunny](https://mediabunny.dev). If the browser can only
   encode VP9 and `ffmpeg` is installed, the server transcodes to H.264.
+- People (`person`, with `--body male|female|child`) are low-poly artist's mannequins (about 4.5k
+  triangles) whose proportions are fitted to the [MakeHuman](https://static.makehumancommunity.org/) base
+  mesh and macro targets, which are CC0. `tools/bake-people.mjs` does the fitting once and writes the
+  few-KB `app/people-data.js`; the app builds the mannequins from that.
 
 Environment: `CANVAS_PORT` (5317), `CANVAS_SCENE` (scene file path), `CANVAS_EXPORTS`,
 `CANVAS_LISTEN_SECONDS` (Stop-hook wait, default 3300).

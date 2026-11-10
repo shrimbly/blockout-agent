@@ -147,3 +147,31 @@ test('the builder helper definition is generated from the skill reference', () =
   assert.ok(agent.startsWith('---\nname: canvas-builder\n'), 'frontmatter');
   assert.ok(agent.endsWith(body), 'run npm run skills:sync after editing references/builder.md');
 });
+
+test('person bodies: male, female or child, height follows the body unless set', () => {
+  const { doc } = applyOps(createDoc(), [
+    { op: 'add', type: 'person', name: 'a' },
+    { op: 'add', type: 'person', name: 'b', body: 'female' },
+    { op: 'add', type: 'person', name: 'c', body: 'child', h: 1.1 },
+  ]);
+  assert.deepEqual(doc.objects.map((o) => o.params), [{ h: null, body: 'male' }, { h: null, body: 'female' }, { h: 1.1, body: 'child' }]);
+  assert.throws(() => applyOps(doc, { op: 'add', type: 'person', body: 'robot' }), /one of male, female, child/);
+  assert.throws(() => applyOps(doc, { op: 'update', id: 'a', body: 2 }), /one of/);
+  // scenes saved before bodies existed stored every person at 1.8 m; they now take their body's height
+  const old = migrate({ objects: [{ type: 'person', id: 'p', params: { h: 1.8 } }, { type: 'person', id: 'q', params: { h: 1.2 } }] });
+  assert.deepEqual(old.objects.map((o) => o.params), [{ h: null, body: 'male' }, { h: 1.2, body: 'male' }]);
+});
+
+test('mannequin parts exist for every body and stand 1 unit tall on the ground', async () => {
+  const { BODY_PARTS } = await import('../app/people-data.js');
+  assert.deepEqual(Object.keys(BODY_PARTS).sort(), [...PRIMITIVES.person.choices.body].sort());
+  for (const [body, parts] of Object.entries(BODY_PARTS)) {
+    let lo = Infinity, hi = -Infinity;
+    for (const [kind, ...p] of parts) {
+      const ys = kind === 'ball' ? [p[0][1] - p[1], p[0][1] + p[1]] : kind === 'limb' ? [p[0][1], p[1][1]] : [p[0][1] - p[1][1], p[0][1] + p[1][1]];
+      lo = Math.min(lo, ...ys); hi = Math.max(hi, ...ys);
+      assert.ok(['egg', 'ball', 'limb'].includes(kind), `${body}: part kind ${kind}`);
+    }
+    assert.ok(Math.abs(lo) < 0.02 && Math.abs(hi - 1) < 0.03, `${body} spans ${lo.toFixed(3)}..${hi.toFixed(3)}`);
+  }
+});

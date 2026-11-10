@@ -160,7 +160,8 @@ function objectFields(flags, type) {
     if (known.has(k)) continue;
     const allParams = new Set(Object.values(PRIMITIVES).flatMap((p) => Object.keys(p.params)));
     if (!allParams.has(k)) throw new Error(`unknown flag --${k}`);
-    o[k] = v === 'null' ? null : num(v);
+    const isChoice = Object.values(PRIMITIVES).some((p) => p.choices?.[k]);
+    o[k] = v === 'null' ? null : isChoice ? String(v) : num(v);
   }
   if (type && o.position == null) o.position = [0, 0, 0];
   return o;

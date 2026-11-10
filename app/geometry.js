@@ -3,22 +3,37 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { BODY_PARTS } from './people-data.js';
+import { PERSON_HEIGHT } from '/core/doc.js';
 
 const up = (g, y) => g.translate(0, y, 0);
 const V = (a) => new THREE.Vector3(...a);
-/** A capsule of radius r from point a to point b (rounded ends centred on the points). With 16 sides
- *  neighbouring facets stay under the 28° edge threshold, so no facet lines are drawn. */
-function limb(a, b, r) {
-  const A = V(a), B = V(b);
-  const g = new THREE.CapsuleGeometry(r, A.distanceTo(B), 6, 16);
-  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()));
-  const m = A.add(B).multiplyScalar(0.5);
-  return g.translate(m.x, m.y, m.z);
+/** A limb tapering from radius ra at point a to rb at point b, with rounded ends (a lathe around a-b). */
+function taper(a, b, ra, rb) {
+  const A = V(a), Bv = V(b), L = A.distanceTo(Bv), pts = [];
+  for (let i = 0; i <= 3; i++) { const t = (-Math.PI / 2) * (1 - i / 3); pts.push(new THREE.Vector2(Math.cos(t) * rb, Math.sin(t) * rb)); }
+  for (let i = 0; i <= 3; i++) { const t = (Math.PI / 2) * (i / 3); pts.push(new THREE.Vector2(Math.cos(t) * ra, L + Math.sin(t) * ra)); }
+  pts[0].x = pts[pts.length - 1].x = 0; // closed poles
+  const g = new THREE.LatheGeometry(pts, 12);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), A.clone().sub(Bv).normalize()));
+  return g.translate(Bv.x, Bv.y, Bv.z);
 }
-/** A sphere (r) or an ellipsoid (radii [x, y, z]) centred on c. */
-function blob(c, r, k = [1, 1, 1]) {
-  const rr = Array.isArray(r) ? r : [r * k[0], r * k[1], r * k[2]];
-  return new THREE.SphereGeometry(1, 24, 14).scale(...rr).translate(...c);
+
+/** Builds a mannequin from fitted parts (see app/people-data.js), scaled so it is exactly h tall.
+ *  About 4.5k triangles, so crowds stay cheap; smooth shading hides the low facet count. */
+function bodyMannequin(parts, h) {
+  const geos = parts.map(([kind, ...p]) => {
+    if (kind === 'ball') return new THREE.SphereGeometry(p[1], 12, 8).translate(...p[0]);
+    if (kind === 'limb') return taper(p[0], p[1], p[2], p[3]);
+    const g = new THREE.SphereGeometry(1, 16, 10).scale(...p[1]);
+    if (p[2]) g.applyQuaternion(new THREE.Quaternion(...p[2]).normalize());
+    return g.translate(...p[0]);
+  });
+  // Lathe and sphere both carry position, normal and uv, so they merge into one indexed mesh.
+  const g = mergeGeometries(geos);
+  g.computeBoundingBox();
+  const k = h / (g.boundingBox.max.y - g.boundingBox.min.y);
+  return g.translate(0, -g.boundingBox.min.y, 0).scale(k, k, k);
 }
 
 export const BUILDERS = {
@@ -52,29 +67,11 @@ export const BUILDERS = {
     s.lineTo(ow / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.closePath();
     return new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 24 }).translate(0, 0, -d / 2);
   },
-  // A simple jointed mannequin (head, neck, chest, pelvis, arms, hands, legs, feet) standing at ease,
-  // h tall, facing +z. Proportions follow the usual ~7.5-heads figure.
-  person({ h }) {
-    const parts = [
-      blob([0, 0.932, 0.004], 0.062, [0.84, 1.12, 0.96]), // head
-      blob([0, 0.924, 0.06], [0.011, 0.017, 0.014]), // nose: shows facing
-      limb([0, 0.835, 0], [0, 0.885, 0.004], 0.027), // neck
-      blob([0, 0.725, 0], [0.108, 0.135, 0.062]), // chest
-      blob([0, 0.565, 0], [0.09, 0.085, 0.058]), // pelvis
-    ];
-    for (const s of [-1, 1]) {
-      parts.push(
-        blob([s * 0.118, 0.806, 0], 0.04), // shoulder
-        limb([s * 0.122, 0.8, 0], [s * 0.148, 0.645, -0.006], 0.032), // upper arm
-        limb([s * 0.148, 0.645, -0.006], [s * 0.164, 0.49, 0.018], 0.026), // forearm
-        blob([s * 0.168, 0.445, 0.024], [0.018, 0.045, 0.03]), // hand
-        limb([s * 0.056, 0.5, 0], [s * 0.06, 0.275, 0.006], 0.047), // thigh
-        limb([s * 0.06, 0.275, 0.006], [s * 0.062, 0.055, -0.01], 0.036), // shin
-        limb([s * 0.062, 0.028, -0.022], [s * 0.068, 0.024, 0.085], 0.026), // foot
-      );
-    }
-    // Indexed parts merge into one indexed mesh, so the vertex normals come out smooth, not faceted.
-    return mergeGeometries(parts.map((g) => g.scale(h, h, h)));
+  // An artist's mannequin (male, female or child) with proportions fitted to MakeHuman bodies, h tall
+  // (default: the body's usual height), facing +z.
+  person({ h, body }) {
+    const b = BODY_PARTS[body] ? body : 'male';
+    return bodyMannequin(BODY_PARTS[b], h ?? PERSON_HEIGHT[b] ?? 1.8);
   },
 };
 

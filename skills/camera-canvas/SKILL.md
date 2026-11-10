@@ -62,9 +62,11 @@ Most of the time goes into round trips, so do as much per step as you can:
   so `--pos x,0,z` stands it on the ground. Stack by adding the height of what is below.
 - Rotations are degrees (`--rot 0,45,0` turns around the vertical axis). `--scale` multiplies size.
 - Types: `box(w,h,d) sphere(r) cylinder(r,h,rTop) cone(r,h) pyramid(w,h,d) capsule(r,h) torus(r,tube)
-  plane(w,d) ramp(w,h,d) stairs(w,h,d,steps) arch(w,h,d,t) person(h)`. `--size a,b,c` fills the
+  plane(w,d) ramp(w,h,d) stairs(w,h,d,steps) arch(w,h,d,t) person(h,body)`. `--size a,b,c` fills the
   main params in that order.
-- Use `person` (1.8 m, faces +z) as a scale reference for any scene with people.
+- Use `person` (faces +z) for people and as a scale reference. `--body male|female|child` picks the
+  body (default male); height defaults to 1.8 / 1.65 / 1.3 m, or set `--h`. Mix bodies in crowds and
+  street scenes rather than repeating one.
 - Give objects meaningful names (`--name hero-car`); the name becomes the id.
 - Keep blockouts grey (default `#d8d4cc`). Use colour only to tell the subject apart from the set
   (one or two muted colours), because the video model reads colour and shape.

@@ -18,8 +18,14 @@ export const PRIMITIVES = {
   ramp: { params: { w: 1, h: 1, d: 2 }, size: ['w', 'h', 'd'], about: 'wedge rising toward −z (stairs, slopes, roofs)' },
   stairs: { params: { w: 1, h: 1, d: 1.5, steps: 6 }, size: ['w', 'h', 'd'], about: 'staircase rising toward −z' },
   arch: { params: { w: 2, h: 2.5, d: 0.5, t: 0.4 }, size: ['w', 'h', 'd'], about: 'doorway / arch, t = wall thickness' },
-  person: { params: { h: 1.8 }, size: ['h'], about: 'jointed mannequin (head, arms, hands, legs, feet) for scale, faces +z' },
+  person: {
+    params: { h: null, body: 'male' }, size: ['h'], choices: { body: ['male', 'female', 'child'] },
+    about: 'human figure facing +z; body male|female|child, h defaults to 1.8 / 1.65 / 1.3 m',
+  },
 };
+
+// Usual heights (m) for the person bodies, used when h is not set.
+export const PERSON_HEIGHT = { male: 1.8, female: 1.65, child: 1.3 };
 
 export const DEFAULT_COLOR = '#d8d4cc';
 
@@ -87,7 +93,10 @@ function normParams(type, params = {}, base) {
   const out = { ...(base || spec.params) };
   for (const [k, v] of Object.entries(params)) {
     if (!(k in spec.params)) throw new Error(`${type} has no param "${k}" (params: ${Object.keys(spec.params).join(', ')})`);
-    if (v !== null && !Number.isFinite(v)) throw new Error(`${type}.${k} must be a number`);
+    const choices = spec.choices?.[k];
+    if (choices) {
+      if (v !== null && !choices.includes(v)) throw new Error(`${type}.${k} must be one of ${choices.join(', ')}, got ${JSON.stringify(v)}`);
+    } else if (v !== null && !Number.isFinite(v)) throw new Error(`${type}.${k} must be a number`);
     out[k] = v;
   }
   return out;
@@ -431,7 +440,10 @@ export function migrate(input) {
   doc.timeline.keys = doc.timeline.keys.map((k, i) => ({ id: k.id || `k${i + 1}`, ...normKey(k) }));
   sortKeys(doc);
   for (const o of d.objects || []) {
-    const { doc: tmp } = applyOps(doc, { op: 'add', ...o, params: o.params });
+    let params = o.params;
+    // People made before bodies existed were all stored at h 1.8; let them use their body's usual height.
+    if (o.type === 'person' && params && params.body == null && params.h === 1.8) params = { ...params, h: null };
+    const { doc: tmp } = applyOps(doc, { op: 'add', ...o, params });
     doc.objects = tmp.objects;
   }
   doc.version = 1;
