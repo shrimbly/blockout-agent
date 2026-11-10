@@ -1,6 +1,7 @@
 ---
 name: camera-canvas
-description: Build and edit 3D blockout scenes and camera moves in the Camera Canvas (three.js) app, answer prompts the user types in the canvas, and export blockout videos as references for generative video models. Use when the user asks to block out, lay out or stage a scene, add or move shapes, set up a camera move or timeline, change easing or speed, export or render the blockout, listen to the canvas, or add a new control to the canvas UI.
+description: Build and edit 3D blockout scenes and camera moves in the Camera Canvas (three.js) app, answer prompts the user types in the canvas, and export blockout videos as references for generative video models. Use when the user asks to open, start or set up the canvas, block out, lay out or stage a scene, add or move shapes, set up a camera move or timeline, change easing or speed, export or render the blockout, listen to the canvas, or add a new control to the canvas UI.
+allowed-tools: Bash(canvas:*), Bash(node bin/canvas.mjs:*)
 ---
 
 # Camera Canvas
@@ -8,24 +9,30 @@ description: Build and edit 3D blockout scenes and camera moves in the Camera Ca
 Camera Canvas is a minimal three.js blockout tool that **you** operate. The user looks at the canvas
 in their browser; you change it with the `canvas` CLI. The scene is a JSON document owned by a small
 local server, so every change you make shows up live in the user's tab, is undoable (`⌘Z`), and is
-saved to `scenes/scene.json`.
+saved to `scenes/scene.json` (in `~/Camera Canvas/` when installed as a plugin, in the repo for a checkout).
 
 The end product is a **blockout video**: a camera move through primitive shapes, exported as an MP4
 that the user passes to a generative video model as a structure/motion reference.
 
-Run every command from the Camera Canvas repo root. `canvas` below means `node bin/canvas.mjs`.
+`canvas` below is the Camera Canvas CLI. With the Claude Code plugin installed it is a command on your
+PATH and works from any folder. In a repo checkout without the plugin, run `node bin/canvas.mjs` from the
+repo root instead (and `npm install` once). `command -v canvas` tells you which you have.
 
 ## 1. Start
 
 ```bash
-npm install            # once (three + mediabunny, no build step)
-node bin/canvas.mjs up # starts the server in the background and opens http://127.0.0.1:5317
-node bin/canvas.mjs ls # ALWAYS read the scene before changing it
+canvas up        # starts the server in the background and opens http://127.0.0.1:5317
+canvas listen on # Claude Code: prompts typed in the canvas now come to this session
+canvas ls        # ALWAYS read the scene before changing it
 ```
+
+When the user asks to open, start or set up the canvas, run all three, then ask in one line what they want
+to block out, and mention they can type it in the canvas or here. That is the whole first-run experience:
+don't send them to a README or ask them to run commands themselves.
 
 `up` is idempotent. `status` tells you whether a browser tab is open: rendering commands
 (`snapshot`, `storyboard`, `export`, `seek`, `view`, `select`, `key --from-view`) need one.
-If none is open, run `node bin/canvas.mjs open` and tell the user.
+If none is open, run `canvas open` and tell the user.
 
 ## 2. The working loop
 
@@ -162,8 +169,8 @@ screenshots), the prompt has an `images attached:` line with their file paths: o
 your Read tool before acting on the prompt.
 
 How to listen depends on the agent:
-- **Claude Code**: run `canvas listen on`. The repo's Stop hook (`.claude/settings.json`) then keeps
-  this session waiting for the next canvas prompt each time you finish, and hands it to you as a new
+- **Claude Code**: run `canvas listen on`. The Stop hook (from the plugin, or `.claude/settings.json` in a
+  checkout) then keeps this session waiting for the next canvas prompt each time you finish, and hands it to you as a new
   instruction in the same thread. `canvas listen off` stops it. The UserPromptSubmit hook also passes
   along prompts queued while you were busy. Without hooks, run `canvas wait` as a background command
   and handle its output when it completes, then start it again.
@@ -185,8 +192,8 @@ fog, a lens picker, an object list…), follow `docs/DESIGN.md` in the repo:
 
 ## 8. Troubleshooting
 
-- `canvas server is not running` → `node bin/canvas.mjs up`.
-- `no canvas tab is open` → `node bin/canvas.mjs open`, then retry.
+- `canvas server is not running` → `canvas up`.
+- `no canvas tab is open` → `canvas open`, then retry.
 - An op error lists valid values (types, params, ease names): fix the call rather than editing JSON by hand.
 - `canvas undo` reverts your last change. The scene file can also be edited directly; the server
   reloads it on save.

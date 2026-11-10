@@ -1,6 +1,6 @@
 # Camera Canvas API reference
 
-Three ways in, all equivalent: the `canvas` CLI (`node bin/canvas.mjs …`), JSON ops
+Three ways in, all equivalent: the `canvas` CLI (`canvas …` with the plugin, `node bin/canvas.mjs …` in a checkout), JSON ops
 (`canvas op '<json>'`, `canvas ops file.json`), and HTTP on `http://127.0.0.1:5317`.
 
 ## Scene document
@@ -118,7 +118,7 @@ shot A's last (hold) key.
 | `POST /api/rpc` | `{ method, params, timeout? }` (methods: camera, state, seek, play, pause, view, select, frame, snapshot, storyboard, export) | `{ ok, result }` |
 | `GET /api/prompt/next?wait=600` | long poll | `{ prompt }` or `{ prompt: null }` on timeout |
 | `POST /api/say` | `{ text, reply?, done? }` | |
-| `POST /api/listen` | `{ on }` | |
+| `POST /api/listen` | `{ on, session?, cwd? }` | the agent session that owns listen mode |
 | `GET /api/events` | Server-Sent Events: doc, status, prompt, say, rpc, reload | |
 
 Prompt objects: `{ id, text, status: pending|taken|done, context: { selection: [..], time, duration, view, key, camera: { position, target, fov } } }`.

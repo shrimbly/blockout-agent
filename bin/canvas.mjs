@@ -5,10 +5,17 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { PRIMITIVES, createDoc } from '../core/doc.js';
 import { EASES, lensToFov } from '../core/curves.js';
+import { dataDir } from '../server/paths.mjs';
+
+if (Number(process.versions.node.split('.')[0]) < 20) {
+  console.error(`error: Camera Canvas needs Node 20 or newer (this is ${process.version}). Install it from https://nodejs.org and try again.`);
+  process.exit(1);
+}
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = (process.env.CANVAS_URL || `http://127.0.0.1:${process.env.CANVAS_PORT || 5317}`).replace(/\/$/, '');
@@ -207,7 +214,35 @@ function openBrowser(url) {
   try { spawn(cmd, args, { stdio: 'ignore', detached: true }).unref(); } catch {}
 }
 
-const runDir = () => path.join(ROOT, '.canvas');
+// Listen mode is owned by the agent session that turned it on, so a Stop hook installed for every Claude Code
+// session (the plugin) never holds an unrelated session open or hands it canvas prompts.
+const listenOwner = () => ({ session: process.env.CLAUDE_CODE_SESSION_ID || null, cwd: process.cwd() });
+function ownsCanvas(st, input) {
+  if (st.listen && st.listenSession) return input.session_id === st.listenSession;
+  if (st.listen && st.listenCwd) return !!input.cwd && path.resolve(input.cwd) === path.resolve(st.listenCwd);
+  // Nobody is listening yet: only sessions started inside a Camera Canvas checkout pick up queued prompts.
+  return !!input.cwd && (path.resolve(input.cwd) + path.sep).startsWith(ROOT + path.sep);
+}
+// Two copies of the hooks can run for one session (the plugin's and a checkout's .claude/settings.json):
+// the first one to start takes a lock and the other steps aside.
+function hookLock(name) {
+  const file = path.join(os.tmpdir(), `camera-canvas-${name.replace(/[^\w.-]/g, '_')}.lock`);
+  for (let i = 0; i < 2; i++) {
+    try { fs.writeFileSync(file, String(process.pid), { flag: 'wx' }); break; }
+    catch {
+      const pid = Number(fs.readFileSync(file, 'utf8'));
+      let alive = false;
+      try { process.kill(pid, 0); alive = true; } catch {}
+      if (alive) return null;
+      fs.rmSync(file, { force: true });
+    }
+  }
+  const release = () => { try { if (fs.readFileSync(file, 'utf8') === String(process.pid)) fs.rmSync(file); } catch {} };
+  process.on('exit', release);
+  return release;
+}
+
+const runDir = () => path.join(dataDir(), '.canvas');
 
 // A helper agent building one part of the scene passes --scope <prefix>: every object it adds is named with
 // that prefix and it can only change its own objects, never the camera, timeline, env or the whole scene.
@@ -252,7 +287,7 @@ const commands = {
     }
     const s = await api('GET', '/api/status');
     if (flags.open !== false && !s.tabs) openBrowser(BASE);
-    out(`canvas running at ${BASE}\nscene:   ${s.scene}\nexports: ${s.exports}\ntabs open: ${s.tabs}`);
+    out(`canvas running at ${BASE}\nscene:   ${s.scene}\nexports: ${s.exports}\ntabs open: ${s.tabs}${s.listen ? '' : '\nnext:    run "canvas listen on" so prompts typed in the canvas reach this session'}`);
   },
 
   async down() {
@@ -411,7 +446,7 @@ const commands = {
     const start = Date.now();
     // Waiting for canvas prompts means this agent is listening: keep it that way across turns
     // (Claude Code's Stop hook uses this flag). `canvas listen off` or --no-listen opts out.
-    if (flags.listen !== false) await api('POST', '/api/listen', { on: true }, { quietFail: true });
+    if (flags.listen !== false) await api('POST', '/api/listen', { on: true, ...listenOwner() }, { quietFail: true });
     // Long-poll in slices so a dropped connection does not lose more than one slice.
     while (true) {
       const left = timeout - (Date.now() - start) / 1000;
@@ -434,7 +469,7 @@ const commands = {
   },
   async listen({ pos }) {
     const on = (pos[0] || 'on') !== 'off';
-    await api('POST', '/api/listen', { on });
+    await api('POST', '/api/listen', { on, ...listenOwner() });
     out(on ? 'listen mode on: when this Claude Code session finishes a turn, the Stop hook waits for the next canvas prompt' : 'listen mode off');
   },
 
@@ -469,6 +504,8 @@ const commands = {
     const input = await readStdin().then((s) => { try { return JSON.parse(s); } catch { return {}; } });
     const st = await api('GET', '/api/status', undefined, { quietFail: true });
     if (!st) return; // server not running: hooks are no-ops
+    if (!ownsCanvas(st, input)) return; // another session is listening, or this one has nothing to do with the canvas
+    if (!hookLock(`${which}-${input.session_id || 'any'}`)) return; // the other copy of this hook is handling it
 
     if (which === 'prompt') {
       // UserPromptSubmit: hand over anything queued in the canvas as extra context.
@@ -498,7 +535,7 @@ const commands = {
           if (r?.prompt) break;
           const now = await api('GET', '/api/status', undefined, { quietFail: true });
           if (!now) { await new Promise((res) => setTimeout(res, 2000)); continue; } // server restarting: keep trying
-          if (!now.listen) return; // canvas listen off: let the session stop
+          if (!now.listen || !ownsCanvas(now, input)) return; // listen off, or another session took over: let this one stop
         }
         if (!r?.prompt) {
           // Nothing for a whole wait: hand back a no-op turn so this hook runs again and listening continues.
@@ -509,7 +546,6 @@ const commands = {
       if (r?.prompt) {
         out({ decision: 'block', reason: `The user sent this from the canvas. Handle it now, then reply with canvas say.\n\n${formatPrompt(r.prompt)}` });
       }
-      void input;
     }
   },
 };

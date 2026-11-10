@@ -14,7 +14,7 @@ try { ({ chromium } = require('playwright')); } catch { console.log('skip: playw
 
 const PORT = 5399;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'canvas-e2e-'));
-const env = { ...process.env, CANVAS_PORT: String(PORT) };
+const env = { ...process.env, CANVAS_PORT: String(PORT), CLAUDE_CODE_SESSION_ID: 'e2e-session' };
 const cli = (...args) => execFileSync(process.execPath, [path.join(ROOT, 'bin/canvas.mjs'), ...args], { env, encoding: 'utf8' }).trim();
 const cliAsync = (...args) => new Promise((resolve, reject) => {
   const p = spawn(process.execPath, [path.join(ROOT, 'bin/canvas.mjs'), ...args], { env });
@@ -107,7 +107,9 @@ try {
   await page.fill('.chat-input', 'add a red cone');
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
-  const hook = JSON.parse(execFileSync(process.execPath, [path.join(ROOT, 'bin/canvas.mjs'), 'hook', 'stop'], { env, input: '{}', encoding: 'utf8' }));
+  const runHook = (session) => execFileSync(process.execPath, [path.join(ROOT, 'bin/canvas.mjs'), 'hook', 'stop'], { env, input: JSON.stringify({ session_id: session, cwd: '/' }), encoding: 'utf8' });
+  ok(runHook('some-other-session') === '', 'Stop hook leaves sessions that are not listening alone');
+  const hook = JSON.parse(runHook('e2e-session'));
   ok(hook.decision === 'block' && /add a red cone/.test(hook.reason), 'Stop hook blocks with the canvas prompt');
 
   // a prompt the agent took but never answered is closed when it asks for the next one

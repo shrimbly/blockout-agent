@@ -21,3 +21,10 @@
   (`.claude/agents/canvas-builder.md`, generated from `skills/camera-canvas/references/builder.md`) in
   one message so they run in parallel, following `skills/camera-canvas/references/orchestration.md`.
   Helpers never listen, reply or touch the camera; you keep the canvas chat, camera and final review.
+- Camera Canvas also ships as a Claude Code plugin from this same folder: `.claude-plugin/` (manifest and
+  marketplace), `hooks/hooks.json` (the same two hooks), `bin/canvas` (the `canvas` command on PATH) and the
+  skill in `skills/`. Keep `hooks/hooks.json` in step with `.claude/settings.json` (npm test checks it), and
+  bump `version` in `.claude-plugin/plugin.json` when you want installed copies to update.
+- Listen mode is owned by one session (`CLAUDE_CODE_SESSION_ID` at `canvas listen on`); the hooks do nothing
+  in other sessions. Two copies of a hook in one session (plugin + checkout) take a lock, so only one runs.
+

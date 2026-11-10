@@ -187,3 +187,18 @@ test('a mannequin exists for every body: closed parts, 1 unit tall, feet on the 
     assert.ok(volume > 0.01 && volume < 0.03, `${body}: volume ${volume.toFixed(4)} of a 1 unit cube`);
   }
 });
+
+test('the Claude Code plugin manifests parse and their hooks run the same CLI as the checkout hooks', () => {
+  const read = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  const plugin = read('.claude-plugin/plugin.json'), market = read('.claude-plugin/marketplace.json');
+  assert.equal(plugin.name, 'camera-canvas');
+  assert.ok(market.plugins.some((p) => p.name === plugin.name && p.source === './'));
+  for (const a of plugin.agents || []) assert.ok(fs.existsSync(path.join(ROOT, a)), `${a} is missing`);
+  const pluginHooks = read('hooks/hooks.json').hooks, repoHooks = read('.claude/settings.json').hooks;
+  for (const ev of ['Stop', 'UserPromptSubmit']) {
+    const a = pluginHooks[ev][0].hooks[0].command.split('bin/canvas.mjs')[1];
+    const b = repoHooks[ev][0].hooks[0].command.split('bin/canvas.mjs')[1];
+    assert.equal(a, b, `${ev} hook differs between hooks/hooks.json and .claude/settings.json`);
+  }
+  assert.ok(fs.statSync(path.join(ROOT, 'bin/canvas')).mode & 0o111, 'bin/canvas must be executable');
+});

@@ -13,9 +13,29 @@ timeline with easing and speed curves, and a chat sidebar that talks to your age
   └──────── live scene updates ◀─────────┴──── canvas CLI ◀─────┘
 ```
 
-## Quick start
+## Quick start: start in Claude Code
 
 Requires Node 20+ and a Chromium-based browser or Safari 17+ (for WebCodecs video export).
+
+Install the plugin once, from any Claude Code session:
+
+```
+/plugin marketplace add <owner>/camera-canvas      # or the path to a local copy of this repo
+/plugin install camera-canvas@camera-canvas
+```
+
+Then, in any folder, just ask: **"open the canvas"**. Claude starts the server, opens the canvas in your
+browser, starts listening to it and asks what you want to block out. Answer in the terminal or in the
+canvas: it is the same conversation. That's the whole setup; nothing to clone, install or keep open.
+
+The plugin brings the `camera-canvas` skill, the `canvas` command (on Claude's PATH), the listening hooks
+and the `canvas-builder` helper. Your scenes, saves and exports live in `~/Camera Canvas/scenes/`, so
+plugin updates never touch them (`CANVAS_DATA` moves them).
+
+Listening belongs to the session that turned it on: the plugin's hooks run in every Claude Code
+session but do nothing in any other one, and nothing at all while the canvas server is stopped.
+
+## Without the plugin (Codex, or working on Camera Canvas itself)
 
 ```bash
 npm install
@@ -28,8 +48,9 @@ Then open your agent in this folder and talk to it:
   push-in over 5 seconds". The `camera-canvas` skill and hooks load from `.claude/`.
 - **Codex**: `codex` → same. Codex reads `AGENTS.md` and the skill in `.agents/skills/`.
 
-To use the skill from any folder: `node bin/sync-skills.mjs --global` (installs to
-`~/.claude/skills` and `~/.codex/skills` with this repo's path baked in).
+A checkout keeps its scenes in the repo's own `scenes/` folder. To use the skill from any folder
+without the plugin: `node bin/sync-skills.mjs --global` (installs to `~/.claude/skills` and
+`~/.codex/skills` with this repo's path baked in).
 
 ## Prompting from inside the canvas
 
@@ -121,7 +142,8 @@ registers it in `app/controls/index.js`, and open tabs reload automatically. See
   is no model file to load.
 
 Environment: `CANVAS_PORT` (5317), `CANVAS_SCENE` (scene file path), `CANVAS_EXPORTS`,
-`CANVAS_LISTEN_SECONDS` (Stop-hook wait, default 3300).
+`CANVAS_LISTEN_SECONDS` (Stop-hook wait, default 3300), `CANVAS_DATA` (where scenes live; default the
+repo for a checkout, `~/Camera Canvas` for the plugin).
 
 ## Tests
 

@@ -13,6 +13,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { applyOps, createDoc, migrate, describe } from '../core/doc.js';
+import { dataDir } from './paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,7 +24,7 @@ const MIME = {
 };
 
 export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = false } = {}) {
-  const scenePath = path.resolve(scene || process.env.CANVAS_SCENE || path.join(ROOT, 'scenes', 'scene.json'));
+  const scenePath = path.resolve(scene || process.env.CANVAS_SCENE || path.join(dataDir(), 'scenes', 'scene.json'));
   const workDir = path.join(path.dirname(scenePath), '.canvas');
   const exportsDir = path.resolve(process.env.CANVAS_EXPORTS || path.join(path.dirname(scenePath), 'exports'));
   const savesDir = path.join(path.dirname(scenePath), 'saved');
@@ -155,8 +156,10 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   const waiters = []; // long-polling agents
   let lastAgentPoll = 0;
   const listenPath = path.join(workDir, 'listen.json');
-  let listen = false;
-  try { listen = !!JSON.parse(fs.readFileSync(listenPath, 'utf8')).on; } catch {}
+  // Listen mode belongs to one agent session (the one that turned it on), so a Stop hook installed for every
+  // Claude Code session (the plugin) only ever holds that session open, never an unrelated one.
+  let listen = false, listenSession = null, listenCwd = null;
+  try { ({ on: listen, session: listenSession = null, cwd: listenCwd = null } = JSON.parse(fs.readFileSync(listenPath, 'utf8'))); listen = !!listen; } catch {}
   const agentListening = () => waiters.length > 0 || Date.now() - lastAgentPoll < 3000;
   // "Working" while the agent holds a prompt. In listen mode the agent comes back to poll as soon as it
   // finishes (the Stop hook or `canvas wait`), so a taken prompt means it is still busy, even while it is
@@ -170,7 +173,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     if (Date.now() - lastAgentActivity < 120000) return true;
     return listen && taken.some((p) => Date.now() - (p.takenAt || 0) < 30 * 60000);
   };
-  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
+  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, listenSession, listenCwd, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
   let lastStatus = '';
   const pushStatus = () => { const s = JSON.stringify(statusPayload()); if (s !== lastStatus) { lastStatus = s; broadcast('status', statusPayload()); } };
   setInterval(pushStatus, 2000).unref();
@@ -386,9 +389,11 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       pushStatus();
     },
     'POST /api/listen': async (req, res) => {
-      const { on } = await readJson(req);
+      const { on, session = null, cwd = null } = await readJson(req);
       listen = !!on;
-      fs.writeFileSync(listenPath, JSON.stringify({ on: listen }));
+      listenSession = listen ? session : null;
+      listenCwd = listen ? cwd : null;
+      fs.writeFileSync(listenPath, JSON.stringify({ on: listen, session: listenSession, cwd: listenCwd }));
       pushStatus();
       json(res, 200, { ok: true, listen });
     },

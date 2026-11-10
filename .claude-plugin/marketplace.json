@@ -1,0 +1,14 @@
+{
+  "name": "camera-canvas",
+  "owner": {
+    "name": "Willie"
+  },
+  "description": "Camera Canvas: a three.js blockout canvas you drive with Claude.",
+  "plugins": [
+    {
+      "name": "camera-canvas",
+      "source": "./",
+      "description": "Block out 3D scenes and camera moves with Claude, then export a blockout video."
+    }
+  ]
+}

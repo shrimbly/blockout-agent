@@ -1,0 +1,9 @@
+{
+  "name": "camera-canvas",
+  "version": "0.2.0",
+  "description": "Block out 3D scenes and camera moves with Claude in a minimal three.js canvas, then export a blockout video for a generative video model.",
+  "author": { "name": "Willie" },
+  "license": "MIT",
+  "keywords": ["three.js", "blockout", "camera", "previs", "video"],
+  "agents": ["./.claude/agents/canvas-builder.md"]
+}
