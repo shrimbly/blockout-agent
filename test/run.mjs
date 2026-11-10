@@ -162,26 +162,28 @@ test('person bodies: male, female or child, height follows the body unless set',
   assert.deepEqual(old.objects.map((o) => o.params), [{ h: null, body: 'male' }, { h: 1.2, body: 'male' }]);
 });
 
-test('a figure exists for every body: half a mesh on the mirror seam, 1 unit tall, feet on the ground', async () => {
-  const { BODY_MESH } = await import('../app/people-data.js');
-  assert.deepEqual(Object.keys(BODY_MESH).sort(), [...PRIMITIVES.person.choices.body].sort());
-  const bytes = (s) => new Uint8Array(Buffer.from(s, 'base64'));
-  for (const [body, m] of Object.entries(BODY_MESH)) {
-    const v = new Uint16Array(bytes(m.v).buffer), n = new Int8Array(bytes(m.n).buffer), i = new Uint16Array(bytes(m.i).buffer);
-    assert.equal(v.length % 3, 0); assert.equal(n.length, v.length); assert.equal(i.length % 3, 0);
-    assert.ok(i.length / 3 * 2 <= 4000, `${body}: ${i.length / 3 * 2} triangles once mirrored`);
-    assert.ok(i.every((k) => k < v.length / 3), `${body}: indices in range`);
-    let lo = Infinity, hi = -Infinity, seam = 0;
-    for (let k = 0; k < v.length; k += 3) {
-      lo = Math.min(lo, v[k + 1]); hi = Math.max(hi, v[k + 1]);
-      if (v[k] === 0) { seam++; assert.equal(n[k], 0, `${body}: a seam normal lies in the mirror plane`); }
-      assert.ok(Math.abs(Math.hypot(n[k], n[k + 1], n[k + 2]) / 127 - 1) < 0.05, `${body}: unit normals`);
-    }
-    assert.ok(lo === 0 && hi === 65535, `${body} spans ${lo}..${hi}`);
-    assert.ok(seam > 20, `${body}: ${seam} vertices on the mirror seam`);
-    // every edge off the seam is shared by two triangles: the half is open only where its mirror image joins
+test('a mannequin exists for every body: closed parts, 1 unit tall, feet on the ground, facing +z', async () => {
+  const { mannequin, BODIES } = await import('../app/mannequin.js');
+  assert.deepEqual(Object.keys(BODIES).sort(), [...PRIMITIVES.person.choices.body].sort());
+  for (const body of Object.keys(BODIES)) {
+    const g = mannequin(body), p = g.attributes.position.array, i = g.index.array;
+    assert.equal(mannequin(body), g, `${body} is built once`);
+    assert.ok(i.length / 3 <= 4000, `${body}: ${i.length / 3} triangles`);
+    assert.ok(i.every((k) => k < p.length / 3), `${body}: indices in range`);
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (let k = 0; k < p.length; k++) { lo[k % 3] = Math.min(lo[k % 3], p[k]); hi[k % 3] = Math.max(hi[k % 3], p[k]); }
+    assert.ok(lo[1] === 0 && hi[1] === 1, `${body} spans y ${lo[1]}..${hi[1]}`);
+    assert.ok(Math.abs(lo[0] + hi[0]) < 1e-6, `${body}: left mirrors right`);
+    assert.ok(hi[2] > -lo[2] * 1.5, `${body}: the toes point to +z`);
+    // every part is a closed surface facing outward: each edge joins two triangles, and the volume is positive
     const edges = new Map();
-    for (let t = 0; t < i.length; t += 3) for (let e = 0; e < 3; e++) { const a = i[t + e], b = i[t + (e + 1) % 3], key = a < b ? `${a},${b}` : `${b},${a}`; edges.set(key, (edges.get(key) || 0) + 1); }
-    for (const [key, count] of edges) { const [a, b] = key.split(',').map(Number); assert.ok(count === 2 || (count === 1 && v[a * 3] === 0 && v[b * 3] === 0), `${body}: edge ${key} has ${count} triangles`); }
+    let volume = 0;
+    for (let t = 0; t < i.length; t += 3) {
+      const [a, b, c] = [0, 1, 2].map((e) => [p[i[t + e] * 3], p[i[t + e] * 3 + 1], p[i[t + e] * 3 + 2]]);
+      volume += (a[0] * (b[1] * c[2] - b[2] * c[1]) + a[1] * (b[2] * c[0] - b[0] * c[2]) + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+      for (let e = 0; e < 3; e++) { const m = i[t + e], n = i[t + (e + 1) % 3], key = m < n ? `${m},${n}` : `${n},${m}`; edges.set(key, (edges.get(key) || 0) + 1); }
+    }
+    for (const [key, count] of edges) assert.equal(count, 2, `${body}: edge ${key} has ${count} triangles`);
+    assert.ok(volume > 0.01 && volume < 0.03, `${body}: volume ${volume.toFixed(4)} of a 1 unit cube`);
   }
 });
