@@ -5,6 +5,21 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const up = (g, y) => g.translate(0, y, 0);
+const V = (a) => new THREE.Vector3(...a);
+/** A capsule of radius r from point a to point b (rounded ends centred on the points). With 16 sides
+ *  neighbouring facets stay under the 28° edge threshold, so no facet lines are drawn. */
+function limb(a, b, r) {
+  const A = V(a), B = V(b);
+  const g = new THREE.CapsuleGeometry(r, A.distanceTo(B), 6, 16);
+  g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize()));
+  const m = A.add(B).multiplyScalar(0.5);
+  return g.translate(m.x, m.y, m.z);
+}
+/** A sphere (r) or an ellipsoid (radii [x, y, z]) centred on c. */
+function blob(c, r, k = [1, 1, 1]) {
+  const rr = Array.isArray(r) ? r : [r * k[0], r * k[1], r * k[2]];
+  return new THREE.SphereGeometry(1, 24, 14).scale(...rr).translate(...c);
+}
 
 export const BUILDERS = {
   box: ({ w, h, d }) => up(new THREE.BoxGeometry(w, h, d), h / 2),
@@ -37,11 +52,29 @@ export const BUILDERS = {
     s.lineTo(ow / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.closePath();
     return new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 24 }).translate(0, 0, -d / 2);
   },
+  // A simple jointed mannequin (head, neck, chest, pelvis, arms, hands, legs, feet) standing at ease,
+  // h tall, facing +z. Proportions follow the usual ~7.5-heads figure.
   person({ h }) {
-    const body = new THREE.CapsuleGeometry(0.12 * h, 0.5 * h, 6, 16).translate(0, 0.37 * h, 0);
-    const head = new THREE.SphereGeometry(0.075 * h, 24, 12).translate(0, 0.9 * h, 0);
-    const nose = new THREE.BoxGeometry(0.03 * h, 0.03 * h, 0.05 * h).translate(0, 0.9 * h, 0.075 * h); // shows facing (+z)
-    return mergeGeometries([body.toNonIndexed(), head.toNonIndexed(), nose.toNonIndexed()]);
+    const parts = [
+      blob([0, 0.932, 0.004], 0.062, [0.84, 1.12, 0.96]), // head
+      blob([0, 0.924, 0.06], [0.011, 0.017, 0.014]), // nose: shows facing
+      limb([0, 0.835, 0], [0, 0.885, 0.004], 0.027), // neck
+      blob([0, 0.725, 0], [0.108, 0.135, 0.062]), // chest
+      blob([0, 0.565, 0], [0.09, 0.085, 0.058]), // pelvis
+    ];
+    for (const s of [-1, 1]) {
+      parts.push(
+        blob([s * 0.118, 0.806, 0], 0.04), // shoulder
+        limb([s * 0.122, 0.8, 0], [s * 0.148, 0.645, -0.006], 0.032), // upper arm
+        limb([s * 0.148, 0.645, -0.006], [s * 0.164, 0.49, 0.018], 0.026), // forearm
+        blob([s * 0.168, 0.445, 0.024], [0.018, 0.045, 0.03]), // hand
+        limb([s * 0.056, 0.5, 0], [s * 0.06, 0.275, 0.006], 0.047), // thigh
+        limb([s * 0.06, 0.275, 0.006], [s * 0.062, 0.055, -0.01], 0.036), // shin
+        limb([s * 0.062, 0.028, -0.022], [s * 0.068, 0.024, 0.085], 0.026), // foot
+      );
+    }
+    // Indexed parts merge into one indexed mesh, so the vertex normals come out smooth, not faceted.
+    return mergeGeometries(parts.map((g) => g.scale(h, h, h)));
   },
 };
 

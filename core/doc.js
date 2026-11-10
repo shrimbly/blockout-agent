@@ -18,7 +18,7 @@ export const PRIMITIVES = {
   ramp: { params: { w: 1, h: 1, d: 2 }, size: ['w', 'h', 'd'], about: 'wedge rising toward −z (stairs, slopes, roofs)' },
   stairs: { params: { w: 1, h: 1, d: 1.5, steps: 6 }, size: ['w', 'h', 'd'], about: 'staircase rising toward −z' },
   arch: { params: { w: 2, h: 2.5, d: 0.5, t: 0.4 }, size: ['w', 'h', 'd'], about: 'doorway / arch, t = wall thickness' },
-  person: { params: { h: 1.8 }, size: ['h'], about: 'human stand-in for scale, faces +z' },
+  person: { params: { h: 1.8 }, size: ['h'], about: 'jointed mannequin (head, arms, hands, legs, feet) for scale, faces +z' },
 };
 
 export const DEFAULT_COLOR = '#d8d4cc';
