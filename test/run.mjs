@@ -217,6 +217,13 @@ test('the Claude Code plugin manifests parse and their hooks run the same CLI as
   assert.ok(fs.statSync(path.join(ROOT, 'bin/canvas')).mode & 0o111, 'bin/canvas must be executable');
 });
 
+test('the plugin has no fixed version, so installed copies follow main', () => {
+  const m = JSON.parse(fs.readFileSync(new URL('../.claude-plugin/plugin.json', import.meta.url), 'utf8'));
+  assert.equal(m.version, undefined);
+  const mk = JSON.parse(fs.readFileSync(new URL('../.claude-plugin/marketplace.json', import.meta.url), 'utf8'));
+  assert.ok(mk.plugins.every((p) => p.version === undefined));
+});
+
 test('launchInfo tells Claude Code, Codex and a terminal apart, and finds the plugin', async () => {
   const { launchInfo } = await import('../server/index.mjs');
   const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');

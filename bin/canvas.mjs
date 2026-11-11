@@ -270,7 +270,15 @@ const commands = {
   },
 
   async up({ flags }) {
-    const st = await api('GET', '/api/status', undefined, { quietFail: true });
+    let st = await api('GET', '/api/status', undefined, { quietFail: true });
+    // A plugin update installs a new copy next to the old one, but the server the old copy started keeps
+    // running and serving the old app. When both are plugin copies, stop the old server and start this one.
+    const inCache = (p) => typeof p === 'string' && p.split(path.sep).join('/').includes('/.claude/plugins/cache/');
+    if (st?.launch?.root && st.launch.root !== ROOT && inCache(st.launch.root) && inCache(ROOT) && st.pid) {
+      try { process.kill(st.pid, 'SIGTERM'); } catch {}
+      for (let i = 0; i < 50 && st; i++) { await new Promise((r) => setTimeout(r, 100)); st = await api('GET', '/api/status', undefined, { quietFail: true }); }
+      out('restarting the canvas server on the updated plugin');
+    }
     if (!st) {
       fs.mkdirSync(runDir(), { recursive: true });
       const logFile = fs.openSync(path.join(runDir(), 'server.log'), 'a');

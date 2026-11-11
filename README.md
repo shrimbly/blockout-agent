@@ -33,6 +33,12 @@ The plugin brings the `/blockout-agent:start` command, the `camera-canvas` skill
 and the `canvas-builder` helper. Your scenes, saves and exports live in `~/Camera Canvas/scenes/`, so
 plugin updates never touch them (`CANVAS_DATA` moves them).
 
+**Updates.** Claude Code doesn't auto-update plugins from third-party marketplaces unless you turn it
+on: run `/plugin`, open **Marketplaces**, select `blockout-agent` and choose **Enable auto-update**. Or
+update by hand with `/plugin marketplace update blockout-agent`. The plugin has no fixed version, so
+every new commit on `main` is an update. The next `/blockout-agent:start` restarts the canvas server on
+the new copy.
+
 Listening belongs to the session that turned it on: the plugin's hooks run in every Claude Code
 session but do nothing in any other one, and nothing at all while the canvas server is stopped.
 
