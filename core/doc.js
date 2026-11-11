@@ -24,8 +24,8 @@ export const PRIMITIVES = {
   },
 };
 
-// How people are drawn when a person's own detail is not set: 'high' is the jointed mannequin, 'low' a
-// box body with a cube head. Set per scene with env.people.
+// How people are drawn when a person's own detail is not set: 'low' (the default for new scenes) is a box
+// body with a cube head, 'high' the jointed mannequin. Set per scene with env.people.
 export const PERSON_DETAIL = ['high', 'low'];
 
 // Usual heights (m) for the person bodies, used when h is not set.
@@ -37,7 +37,7 @@ export function createDoc() {
   return {
     version: 1,
     meta: { name: 'untitled', width: 1280, height: 720 },
-    env: { background: '#e9e7e2', ground: true, grid: true, fog: 0, sun: [6, 10, 4], people: 'high' },
+    env: { background: '#e9e7e2', ground: true, grid: true, fog: 0, sun: [6, 10, 4], people: 'low' },
     objects: [],
     timeline: {
       duration: 5,
@@ -439,7 +439,8 @@ export function migrate(input) {
     ...base,
     ...d,
     meta: { ...base.meta, ...(d.meta || {}) },
-    env: { ...base.env, ...(d.env || {}) },
+    // scenes saved before env.people existed were drawn with the mannequin, so they keep it
+    env: { ...base.env, people: 'high', ...(d.env || {}) },
     timeline: { ...base.timeline, ...(d.timeline || {}) },
     controls: { ...(d.controls || {}) },
     objects: [],

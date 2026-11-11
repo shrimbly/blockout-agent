@@ -308,7 +308,7 @@ const commands = {
     if (flags.prefix) s.objects = s.objects.filter((o) => o.startsWith(String(flags.prefix)));
     const lines = [
       `scene "${s.meta.name}" ${s.meta.width}x${s.meta.height}, rev ${s.rev}, ${s.tabs} tab(s) open${s.agent ? '' : ''}`,
-      `env: background ${s.env.background}, ground ${s.env.ground ? 'on' : 'off'}, grid ${s.env.grid ? 'on' : 'off'}, fog ${s.env.fog}, people ${s.env.people || 'high'}`,
+      `env: background ${s.env.background}, ground ${s.env.ground ? 'on' : 'off'}, grid ${s.env.grid ? 'on' : 'off'}, fog ${s.env.fog}, people ${s.env.people || 'low'}`,
       `objects (${s.objects.length}):`, ...s.objects.map((o) => `  ${o}`),
       `timeline: ${s.timeline.duration}s @ ${s.timeline.fps}fps, ${s.timeline.interp} path, speed ${JSON.stringify(s.timeline.speed)}`,
       `camera keys (${s.keys.length}):`, ...s.keys.map((k) => `  ${k}`),

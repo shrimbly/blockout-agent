@@ -184,8 +184,11 @@ try {
   await page.waitForTimeout(200);
   const wz = await page.evaluate(() => window.canvas.viewport.meshes.get('walker').mesh.position.z);
   ok(Math.abs(wz - 1) < 0.05, `the object is halfway at 2s (z=${wz.toFixed(2)})`);
+  const lowTris = await page.evaluate(() => window.canvas.viewport.meshes.get('walker').mesh.geometry.index.count / 3);
+  ok(lowTris < 200, `a new scene draws people in low detail (${lowTris} tris)`);
+  cli('env', '--people', 'high');
   await page.evaluate(() => window.canvas.store.set({ selection: 'walker' }));
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(250);
   const body = await page.evaluate(() => { const m = window.canvas.viewport.meshes.get('walker'); m.mesh.geometry.computeBoundingBox(); const bb = m.mesh.geometry.boundingBox; return { tris: m.mesh.geometry.index.count / 3, h: bb.max.y - bb.min.y, minY: bb.min.y, tint: m.mesh.material.emissive.getHex() }; });
   ok(body.tris < 4000 && Math.abs(body.h - 1.8) < 0.01 && Math.abs(body.minY) < 1e-4, `person is a low-poly 1.8 m mannequin standing on the ground (${body.tris} tris, h=${body.h.toFixed(3)})`);
   ok(body.tint !== 0, 'a selected person is tinted (people draw no edge lines)');

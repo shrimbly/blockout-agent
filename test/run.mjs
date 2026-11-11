@@ -164,10 +164,12 @@ test('person bodies: male, female or child, height follows the body unless set',
 
 test('person detail: high or low per person, else the scene\'s env.people', () => {
   let { doc } = applyOps(createDoc(), [{ op: 'add', type: 'person', name: 'a' }, { op: 'add', type: 'person', name: 'b', detail: 'low' }]);
-  assert.equal(doc.env.people, 'high');
-  assert.deepEqual(doc.objects.map((o) => o.params.detail), [null, 'low']);
-  ({ doc } = applyOps(doc, { op: 'env', people: 'low' }));
   assert.equal(doc.env.people, 'low');
+  assert.deepEqual(doc.objects.map((o) => o.params.detail), [null, 'low']);
+  ({ doc } = applyOps(doc, { op: 'env', people: 'high' }));
+  assert.equal(doc.env.people, 'high');
+  assert.equal(migrate(doc).env.people, 'high');
+  assert.equal(migrate(createDoc()).env.people, 'low');
   assert.throws(() => applyOps(doc, { op: 'env', people: 'medium' }), /env.people must be one of high, low/);
   assert.throws(() => applyOps(doc, { op: 'update', id: 'a', detail: 'medium' }), /one of high, low/);
   // scenes saved before env.people existed draw people in high detail

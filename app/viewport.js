@@ -237,7 +237,7 @@ export class Viewport {
       seen.add(o.id);
       let m = this.meshes.get(o.id);
       // a person without its own detail follows the scene's env.people
-      const params = o.type === 'person' ? { ...o.params, detail: o.params.detail ?? env.people ?? 'high' } : o.params;
+      const params = o.type === 'person' ? { ...o.params, detail: o.params.detail ?? env.people ?? 'low' } : o.params;
       const geoKey = o.type + JSON.stringify(params);
       if (!m) {
         const mat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0, color: o.color });

@@ -75,10 +75,10 @@ Most of the time goes into round trips, so do as much per step as you can:
 - Use `person` (faces +z) for people and as a scale reference. `--body male|female|child` picks the
   body (default male); height defaults to 1.8 / 1.65 / 1.3 m, or set `--h`. Mix bodies in crowds and
   street scenes rather than repeating one.
-- People come in two levels of detail: `high` (default) is a jointed mannequin, `low` a box body
-  with a cube head and a drawn-on face. Set the whole scene with `canvas env --people low|high`, or
-  one person with `--detail low|high` (`--detail null` follows the scene again). Use low when the
-  user asks for simpler people or for big crowds.
+- People come in two levels of detail: `low` (the default) is a box body with a cube head and a
+  drawn-on face, `high` a jointed artist's mannequin. Keep low unless the user asks for more
+  detailed, realistic or posable people; then switch the whole scene with `canvas env --people high`,
+  or one person with `--detail high` (`--detail null` follows the scene again).
 - Give objects meaningful names (`--name hero-car`); the name becomes the id.
 - Keep blockouts grey (default `#d8d4cc`). Use colour only to tell the subject apart from the set
   (one or two muted colours), because the video model reads colour and shape.
