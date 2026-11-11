@@ -1,6 +1,6 @@
 ---
 name: camera-canvas
-description: Build and edit 3D blockout scenes and camera moves in the Camera Canvas (three.js) app, answer prompts the user types in the canvas, and export blockout videos as references for generative video models. Use when the user asks to open, start or set up the canvas, block out, lay out or stage a scene, add or move shapes, set up a camera move or timeline, change easing or speed, export or render the blockout, listen to the canvas, or add a new control to the canvas UI.
+description: Operate Camera Canvas, the three.js blockout tool for 3D scenes and camera moves: build and edit the scene, drive the camera timeline, answer prompts typed in the Camera Canvas chat, and export blockout videos for generative video models. Use only for Camera Canvas work: after /camera-canvas:start, when the user names Camera Canvas, when a prompt arrives from the Camera Canvas hooks, or when the user asks to block out a 3D scene or camera move for a video. Not for other canvases (design canvases, HTML canvas, Figma).
 allowed-tools: Bash(canvas:*), Bash(node bin/canvas.mjs:*)
 ---
 
@@ -26,9 +26,10 @@ canvas listen on # Claude Code: prompts typed in the canvas now come to this ses
 canvas ls        # ALWAYS read the scene before changing it
 ```
 
-When the user asks to open, start or set up the canvas, run all three, then ask in one line what they want
-to block out, and mention they can type it in the canvas or here. That is the whole first-run experience:
-don't send them to a README or ask them to run commands themselves.
+The user starts a session with `/camera-canvas:start` (plugin), which runs all three and asks what to
+block out. When they ask for Camera Canvas by name without it, do the same: run all three, then ask in one
+line what they want to block out, and mention they can type it in the canvas or here. Don't send them to a
+README or ask them to run commands themselves.
 
 `up` is idempotent. `status` tells you whether a browser tab is open: rendering commands
 (`snapshot`, `storyboard`, `export`, `seek`, `view`, `select`, `key --from-view`) need one.

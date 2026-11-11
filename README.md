@@ -24,11 +24,12 @@ Install the plugin once, from any Claude Code session:
 /plugin install camera-canvas@camera-canvas
 ```
 
-Then, in any folder, just ask: **"open the canvas"**. Claude starts the server, opens the canvas in your
-browser, starts listening to it and asks what you want to block out. Answer in the terminal or in the
+Then, in any folder, run **`/camera-canvas:start`** (optionally followed by what to block out, e.g.
+`/camera-canvas:start a lighthouse on a cliff, slow orbit`). Claude starts the server, opens the canvas in
+your browser, starts listening to it and asks what you want to block out. Answer in the terminal or in the
 canvas: it is the same conversation. That's the whole setup; nothing to clone, install or keep open.
 
-The plugin brings the `camera-canvas` skill, the `canvas` command (on Claude's PATH), the listening hooks
+The plugin brings the `/camera-canvas:start` command, the `camera-canvas` skill, the `canvas` command (on Claude's PATH), the listening hooks
 and the `canvas-builder` helper. Your scenes, saves and exports live in `~/Camera Canvas/scenes/`, so
 plugin updates never touch them (`CANVAS_DATA` moves them).
 
