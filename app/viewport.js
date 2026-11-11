@@ -236,7 +236,9 @@ export class Viewport {
     for (const o of doc.objects) {
       seen.add(o.id);
       let m = this.meshes.get(o.id);
-      const geoKey = o.type + JSON.stringify(o.params);
+      // a person without its own detail follows the scene's env.people
+      const params = o.type === 'person' ? { ...o.params, detail: o.params.detail ?? env.people ?? 'high' } : o.params;
+      const geoKey = o.type + JSON.stringify(params);
       if (!m) {
         const mat = new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0, color: o.color });
         const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat);
@@ -252,7 +254,10 @@ export class Viewport {
       mesh.name = o.name;
       if (m.geoKey !== geoKey) {
         mesh.geometry.dispose(); edges.geometry.dispose();
-        mesh.geometry = buildGeometry(o.type, o.params);
+        mesh.geometry = buildGeometry(o.type, params);
+        // the low-detail person paints its face in vertex colours, multiplied by the object's colour
+        mesh.material.vertexColors = !!mesh.geometry.attributes.color;
+        mesh.material.needsUpdate = true;
         // A body's fine creases would draw as stray lines, so people show selection with a tint instead.
         m.tint = o.type === 'person';
         edges.geometry = m.tint ? new THREE.BufferGeometry() : new THREE.EdgesGeometry(mesh.geometry, 28);

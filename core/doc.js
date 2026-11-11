@@ -19,10 +19,14 @@ export const PRIMITIVES = {
   stairs: { params: { w: 1, h: 1, d: 1.5, steps: 6 }, size: ['w', 'h', 'd'], about: 'staircase rising toward −z' },
   arch: { params: { w: 2, h: 2.5, d: 0.5, t: 0.4 }, size: ['w', 'h', 'd'], about: 'doorway / arch, t = wall thickness' },
   person: {
-    params: { h: null, body: 'male' }, size: ['h'], choices: { body: ['male', 'female', 'child'] },
-    about: 'human figure facing +z; body male|female|child, h defaults to 1.8 / 1.65 / 1.3 m',
+    params: { h: null, body: 'male', detail: null }, size: ['h'], choices: { body: ['male', 'female', 'child'], detail: ['high', 'low'] },
+    about: 'human figure facing +z; body male|female|child, h defaults to 1.8 / 1.65 / 1.3 m; detail high|low (unset: the scene\'s env.people)',
   },
 };
+
+// How people are drawn when a person's own detail is not set: 'high' is the jointed mannequin, 'low' a
+// box body with a cube head. Set per scene with env.people.
+export const PERSON_DETAIL = ['high', 'low'];
 
 // Usual heights (m) for the person bodies, used when h is not set.
 export const PERSON_HEIGHT = { male: 1.8, female: 1.65, child: 1.3 };
@@ -33,7 +37,7 @@ export function createDoc() {
   return {
     version: 1,
     meta: { name: 'untitled', width: 1280, height: 720 },
-    env: { background: '#e9e7e2', ground: true, grid: true, fog: 0, sun: [6, 10, 4] },
+    env: { background: '#e9e7e2', ground: true, grid: true, fog: 0, sun: [6, 10, 4], people: 'high' },
     objects: [],
     timeline: {
       duration: 5,
@@ -252,9 +256,13 @@ export const OPS = {
   },
 
   env(doc, op) {
-    for (const k of ['background', 'ground', 'grid', 'fog', 'sun']) {
+    for (const k of ['background', 'ground', 'grid', 'fog', 'sun', 'people']) {
       if (op[k] === undefined) continue;
       if (k === 'background') doc.env.background = color(op.background);
+      else if (k === 'people') {
+        if (!PERSON_DETAIL.includes(op.people)) throw new Error(`env.people must be one of ${PERSON_DETAIL.join(', ')}, got ${JSON.stringify(op.people)}`);
+        doc.env.people = op.people;
+      }
       else if (k === 'sun') doc.env.sun = vec3(op.sun, 'sun');
       else if (k === 'fog') doc.env.fog = Math.max(0, Number(op.fog) || 0);
       else doc.env[k] = !!op[k];
