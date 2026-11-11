@@ -41,7 +41,7 @@ Objects (meters, Y up, pivot at bottom centre, rotation in degrees)
   canvas rm <id> [id...]
   canvas new                                start a new, empty scene (undoable)
   canvas clear [--keys]                     remove all objects (and camera keys)
-  canvas env [--background #hex] [--ground on|off] [--grid on|off] [--fog 0.02] [--sun x,y,z]
+  canvas env [--background #hex] [--ground on|off] [--grid on|off] [--fog 0.02] [--sun x,y,z] [--people high|low]
   canvas meta [--name n] [--width 1280] [--height 720]
   types: ${Object.entries(PRIMITIVES).map(([k, v]) => `${k}(${Object.keys(v.params).join(',')})`).join(' ')}
 
@@ -308,7 +308,7 @@ const commands = {
     if (flags.prefix) s.objects = s.objects.filter((o) => o.startsWith(String(flags.prefix)));
     const lines = [
       `scene "${s.meta.name}" ${s.meta.width}x${s.meta.height}, rev ${s.rev}, ${s.tabs} tab(s) open${s.agent ? '' : ''}`,
-      `env: background ${s.env.background}, ground ${s.env.ground ? 'on' : 'off'}, grid ${s.env.grid ? 'on' : 'off'}, fog ${s.env.fog}`,
+      `env: background ${s.env.background}, ground ${s.env.ground ? 'on' : 'off'}, grid ${s.env.grid ? 'on' : 'off'}, fog ${s.env.fog}, people ${s.env.people || 'low'}`,
       `objects (${s.objects.length}):`, ...s.objects.map((o) => `  ${o}`),
       `timeline: ${s.timeline.duration}s @ ${s.timeline.fps}fps, ${s.timeline.interp} path, speed ${JSON.stringify(s.timeline.speed)}`,
       `camera keys (${s.keys.length}):`, ...s.keys.map((k) => `  ${k}`),
@@ -343,6 +343,7 @@ const commands = {
     if (flags.grid != null) o.grid = bool(flags.grid);
     if (flags.fog != null) o.fog = num(flags.fog);
     if (flags.sun != null) o.sun = vec(flags.sun);
+    if (flags.people != null) o.people = String(flags.people);
     out((await op(o)).results[0]);
   },
   async meta({ flags }) {

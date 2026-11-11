@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mannequin } from './mannequin.js';
+import { blockman } from './blockman.js';
 import { PERSON_HEIGHT } from '/core/doc.js';
 
 const up = (g, y) => g.translate(0, y, 0);
@@ -39,10 +40,11 @@ export const BUILDERS = {
     s.lineTo(ow / 2, 0); s.lineTo(w / 2, 0); s.lineTo(w / 2, h); s.lineTo(-w / 2, h); s.closePath();
     return new THREE.ExtrudeGeometry(s, { depth: d, bevelEnabled: false, curveSegments: 24 }).translate(0, 0, -d / 2);
   },
-  // A jointed artist's mannequin (male, female or child), h tall (default: the body's usual height), facing +z.
-  person({ h, body }) {
+  // A person (male, female or child), h tall (default: the body's usual height), facing +z. Detail 'high'
+  // is the jointed artist's mannequin; 'low' is a box body with a cube head and a drawn-on face.
+  person({ h, body, detail }) {
     const H = h ?? PERSON_HEIGHT[body] ?? PERSON_HEIGHT.male;
-    return mannequin(body).clone().scale(H, H, H);
+    return (detail === 'low' ? blockman(body) : mannequin(body)).clone().scale(H, H, H);
   },
 };
 

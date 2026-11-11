@@ -154,12 +154,26 @@ test('person bodies: male, female or child, height follows the body unless set',
     { op: 'add', type: 'person', name: 'b', body: 'female' },
     { op: 'add', type: 'person', name: 'c', body: 'child', h: 1.1 },
   ]);
-  assert.deepEqual(doc.objects.map((o) => o.params), [{ h: null, body: 'male' }, { h: null, body: 'female' }, { h: 1.1, body: 'child' }]);
+  assert.deepEqual(doc.objects.map((o) => o.params), [{ h: null, body: 'male', detail: null }, { h: null, body: 'female', detail: null }, { h: 1.1, body: 'child', detail: null }]);
   assert.throws(() => applyOps(doc, { op: 'add', type: 'person', body: 'robot' }), /one of male, female, child/);
   assert.throws(() => applyOps(doc, { op: 'update', id: 'a', body: 2 }), /one of/);
   // scenes saved before bodies existed stored every person at 1.8 m; they now take their body's height
   const old = migrate({ objects: [{ type: 'person', id: 'p', params: { h: 1.8 } }, { type: 'person', id: 'q', params: { h: 1.2 } }] });
-  assert.deepEqual(old.objects.map((o) => o.params), [{ h: null, body: 'male' }, { h: 1.2, body: 'male' }]);
+  assert.deepEqual(old.objects.map((o) => o.params.h), [null, 1.2]);
+});
+
+test('person detail: high or low per person, else the scene\'s env.people', () => {
+  let { doc } = applyOps(createDoc(), [{ op: 'add', type: 'person', name: 'a' }, { op: 'add', type: 'person', name: 'b', detail: 'low' }]);
+  assert.equal(doc.env.people, 'low');
+  assert.deepEqual(doc.objects.map((o) => o.params.detail), [null, 'low']);
+  ({ doc } = applyOps(doc, { op: 'env', people: 'high' }));
+  assert.equal(doc.env.people, 'high');
+  assert.equal(migrate(doc).env.people, 'high');
+  assert.equal(migrate(createDoc()).env.people, 'low');
+  assert.throws(() => applyOps(doc, { op: 'env', people: 'medium' }), /env.people must be one of high, low/);
+  assert.throws(() => applyOps(doc, { op: 'update', id: 'a', detail: 'medium' }), /one of high, low/);
+  // scenes saved before env.people existed draw people in high detail
+  assert.equal(migrate({ objects: [] }).env.people, 'high');
 });
 
 test('a mannequin exists for every body: closed parts, 1 unit tall, feet on the ground, facing +z', async () => {
