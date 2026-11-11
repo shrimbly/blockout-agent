@@ -197,7 +197,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   // turn that turned listening on, before its first Stop hook polls).
   const listenLive = () => listen && (agentListening() || agentWorking() || Date.now() - Math.max(lastAgentActivity, lastAgentPoll) < 120000);
   const launch = launchInfo();
-  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, listenLive: listenLive(), launch, listenSession, listenCwd, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
+  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, listenLive: listenLive(), launch, listenSession, listenCwd, pid: process.pid, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
   let lastStatus = '';
   const pushStatus = () => { const s = JSON.stringify(statusPayload()); if (s !== lastStatus) { lastStatus = s; broadcast('status', statusPayload()); } };
   setInterval(pushStatus, 2000).unref();

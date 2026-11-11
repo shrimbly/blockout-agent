@@ -23,8 +23,9 @@
   Helpers never listen, reply or touch the camera; you keep the canvas chat, camera and final review.
 - Camera Canvas also ships as a Claude Code plugin from this same folder: `.claude-plugin/` (manifest and
   marketplace), `hooks/hooks.json` (the same two hooks), `bin/canvas` (the `canvas` command on PATH) and the
-  skill in `skills/`. Keep `hooks/hooks.json` in step with `.claude/settings.json` (npm test checks it), and
-  bump `version` in `.claude-plugin/plugin.json` when you want installed copies to update.
+  skill in `skills/`. Keep `hooks/hooks.json` in step with `.claude/settings.json` (npm test checks it). Leave
+  `version` out of `.claude-plugin/plugin.json` (npm test checks it): without one, every commit on main is
+  an update for installed copies, while a fixed version would hold them on their cached copy.
 - Listen mode is owned by one session (`CLAUDE_CODE_SESSION_ID` at `canvas listen on`); the hooks do nothing
   in other sessions. Two copies of a hook in one session (plugin + checkout) take a lock, so only one runs.
 
