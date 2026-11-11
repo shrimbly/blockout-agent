@@ -137,10 +137,12 @@ registers it in `app/controls/index.js`, and open tabs reload automatically. See
 - `app/` is plain ES modules with three.js from `node_modules` via an import map. No build step.
 - Video export uses WebCodecs through [mediabunny](https://mediabunny.dev). If the browser can only
   encode VP9 and `ffmpeg` is installed, the server transcodes to H.264.
-- People (`person`, with `--body male|female|child`) are jointed artist's mannequins: an egg head, chest
-  and hip blocks, a waist ball, turned limbs on ball joints, paddle hands and wedge feet, about 3.4k
-  triangles each. `app/mannequin.js` builds them from a short table of proportions per body, so there
-  is no model file to load.
+- People (`person`, with `--body male|female|child`) come in two levels of detail. Low, the default,
+  is a box body and a cube head with a drawn-on face (`app/blockman.js`, 72 triangles). High is a
+  jointed artist's mannequin: an egg head, chest and hip blocks, a waist ball, turned limbs on ball
+  joints, paddle hands and wedge feet, about 3.4k triangles (`app/mannequin.js`). Ask the agent for
+  detailed people, or run `canvas env --people high` (or `--detail high` on one person). Both are
+  built from a short table of proportions per body, so there is no model file to load.
 
 Environment: `CANVAS_PORT` (5317), `CANVAS_SCENE` (scene file path), `CANVAS_EXPORTS`,
 `CANVAS_LISTEN_SECONDS` (Stop-hook wait, default 3300), `CANVAS_DATA` (where scenes live; default the
