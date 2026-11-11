@@ -216,3 +216,18 @@ test('the Claude Code plugin manifests parse and their hooks run the same CLI as
   }
   assert.ok(fs.statSync(path.join(ROOT, 'bin/canvas')).mode & 0o111, 'bin/canvas must be executable');
 });
+
+test('launchInfo tells Claude Code, Codex and a terminal apart, and finds the plugin', async () => {
+  const { launchInfo } = await import('../server/index.mjs');
+  const fs = await import('node:fs'), os = await import('node:os'), path = await import('node:path');
+  const none = fs.mkdtempSync(path.join(os.tmpdir(), 'cc-launch-'));
+  assert.equal(launchInfo({ CLAUDECODE: '1', CLAUDE_CONFIG_DIR: none }).by, 'claude');
+  assert.equal(launchInfo({ CODEX_SANDBOX: 'seatbelt', CLAUDE_CONFIG_DIR: none }).by, 'codex');
+  const t = launchInfo({ CLAUDE_CONFIG_DIR: none });
+  assert.equal(t.by, 'terminal');
+  assert.equal(t.plugin, false);
+  fs.mkdirSync(path.join(none, 'plugins'));
+  fs.writeFileSync(path.join(none, 'plugins', 'installed_plugins.json'), JSON.stringify({ plugins: { 'blockout-agent@blockout-agent': [{}] } }));
+  assert.equal(launchInfo({ CLAUDE_CONFIG_DIR: none }).plugin, true);
+  assert.equal(launchInfo({}, '/Users/x/.claude/plugins/cache/blockout-agent/0.3.0').plugin, true);
+});

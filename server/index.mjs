@@ -12,10 +12,29 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import os from 'node:os';
 import { applyOps, createDoc, migrate, describe } from '../core/doc.js';
 import { dataDir } from './paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * How this server was started, so the empty chat can say the right next step: by Claude Code (its Bash
+ * tool sets CLAUDECODE), by Codex (CODEX_* variables), or by hand from a terminal; whether the
+ * blockout-agent plugin is installed (so /blockout-agent:start works); and whether this is a git checkout
+ * (so "listen to the canvas" works for an agent started in it, through the repo's own hooks).
+ */
+export function launchInfo(env = process.env, root = ROOT) {
+  const by = env.CLAUDECODE || env.CLAUDE_CODE_SESSION_ID ? 'claude' : Object.keys(env).some((k) => k.startsWith('CODEX_')) ? 'codex' : 'terminal';
+  let plugin = !!env.CLAUDE_PLUGIN_ROOT || root.split(path.sep).join('/').includes('/.claude/plugins/');
+  if (!plugin) {
+    try { plugin = fs.readFileSync(path.join(env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), 'plugins', 'installed_plugins.json'), 'utf8').includes('"blockout-agent@'); } catch {}
+  }
+  // the folder as the user would type it: ~/... when it is under home and needs no quoting
+  const home = os.homedir(), rel = root.startsWith(home + path.sep) ? root.slice(home.length + 1) : null;
+  const dir = rel && /^[\w./-]+$/.test(rel) ? `~/${rel}` : /^[\w./-]+$/.test(root) ? root : JSON.stringify(root);
+  return { by, plugin, checkout: fs.existsSync(path.join(root, '.git')), root, dir };
+}
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -173,7 +192,12 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     if (Date.now() - lastAgentActivity < 120000) return true;
     return listen && taken.some((p) => Date.now() - (p.takenAt || 0) < 30 * 60000);
   };
-  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, listenSession, listenCwd, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
+  // Listen mode stays on in listen.json after its session quits. Count it as live only while that agent
+  // shows signs of life: polling now, holding a prompt, or active in the last two minutes (for example the
+  // turn that turned listening on, before its first Stop hook polls).
+  const listenLive = () => listen && (agentListening() || agentWorking() || Date.now() - Math.max(lastAgentActivity, lastAgentPoll) < 120000);
+  const launch = launchInfo();
+  const statusPayload = () => ({ agent: agentListening(), working: !agentListening() && agentWorking(), listen, listenLive: listenLive(), launch, listenSession, listenCwd, waiting: waiters.length, queued: prompts.filter((p) => p.status === 'pending').length, rev });
   let lastStatus = '';
   const pushStatus = () => { const s = JSON.stringify(statusPayload()); if (s !== lastStatus) { lastStatus = s; broadcast('status', statusPayload()); } };
   setInterval(pushStatus, 2000).unref();
@@ -393,6 +417,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       listen = !!on;
       listenSession = listen ? session : null;
       listenCwd = listen ? cwd : null;
+      if (listen) touchAgent();
       fs.writeFileSync(listenPath, JSON.stringify({ on: listen, session: listenSession, cwd: listenCwd }));
       pushStatus();
       json(res, 200, { ok: true, listen });

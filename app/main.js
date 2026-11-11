@@ -165,7 +165,8 @@ function connect() {
     if (store.state.time > doc.timeline.duration) store.set({ time: doc.timeline.duration });
     store.emit('doc', doc);
   });
-  on('status', (s) => store.set({ agent: s.agent, working: s.working, listen: s.listen }));
+  // listen: listen mode with a live agent behind it; listenStale: on, but its agent has gone quiet
+  on('status', (s) => store.set({ agent: s.agent, working: s.working, listen: s.listenLive ?? s.listen, listenStale: !!s.listen && s.listenLive === false, launch: s.launch || null }));
   on('prompt', (p) => store.emit('prompt', p));
   on('say', (m) => store.emit('say', m));
   on('history', (h) => store.emit('history', h));
