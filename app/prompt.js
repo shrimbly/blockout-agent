@@ -19,11 +19,39 @@ export function mountPrompt(root, { viewport, corner }) {
 
   // ---------- thread ----------
   const thread = h('div.chat-thread', { role: 'log', 'aria-live': 'polite' });
-  const empty = h('div.chat-empty', {},
-    h('div.chat-empty-title', {}, 'Talk to your agent'),
-    h('p', {}, 'Messages go to your Claude Code or Codex session with your selection, the playhead and the camera attached.'),
-    h('p', {}, 'In your agent, say ', h('b', {}, '“listen to the canvas”'), ' so it picks them up.'),
-  );
+  // The empty thread follows the agent: how to connect it while nobody is listening, and what to ask
+  // once it is. It re-renders on every status change, so it never tells a listening agent to listen.
+  const empty = h('div.chat-empty');
+  const STARTERS = [
+    'A rainy street with a woman at a bus stop, slow push-in over 5 seconds',
+    'Low orbit around a car in an empty car park at dusk',
+    'Two people talking at a cafe table, over-the-shoulder, then a cut to the reverse',
+  ];
+  let emptyState = '';
+  function renderEmpty() {
+    const state = agentState();
+    if (state === emptyState) return;
+    emptyState = state;
+    const starters = h('div.chat-starters', {}, ...STARTERS.map((text) =>
+      h('button.chat-starter', { type: 'button', onClick: () => { input.value = text; input.dispatchEvent(new Event('input')); input.focus(); } }, text)));
+    const off = [
+      h('div.chat-empty-title', {}, 'Connect your agent'),
+      h('p', {}, 'Your agent builds the scene and the camera move from what you write here.'),
+      h('ol.chat-steps', {},
+        h('li', {}, 'Claude Code: run ', h('code', {}, '/blockout-agent:start'), ', or in a checkout of this repo say ', h('b', {}, '“listen to the canvas”'), '.'),
+        h('li', {}, 'Codex: say ', h('b', {}, '“listen to the canvas”'), '.')),
+      h('p.chat-empty-hint', {}, 'You can write now: messages wait here until your agent connects.'),
+    ];
+    const on = [
+      h('div.chat-empty-title', {}, state === 'working' ? 'Your agent is busy' : 'Your agent is listening'),
+      h('p', {}, state === 'working'
+        ? 'It will pick up what you write here as soon as it finishes.'
+        : 'Describe a scene and a camera move. Your selection, the playhead and the camera go with each message.'),
+      h('div.chat-empty-label', {}, 'Try'),
+      starters,
+    ];
+    empty.replaceChildren(...(state === 'off' ? off : on));
+  }
 
   // ---------- composer ----------
   const input = h('textarea.chat-input', { rows: 1, placeholder: 'Ask your agent…', spellcheck: false, 'aria-label': 'Message your agent' });
@@ -247,16 +275,26 @@ export function mountPrompt(root, { viewport, corner }) {
     } catch (e) { console.warn('new chat failed', e); }
   }
 
-  function refresh() {
+  // One reading of the agent for the header, the badge and the empty thread. Listen mode on counts as
+  // listening even between waits (for example while the agent finishes the turn that turned it on):
+  // its hooks deliver the next prompt as soon as that turn ends.
+  function agentState() {
     const { agent, working, listen } = store.state;
+    return agent ? 'listening' : working ? 'working' : listen ? 'listening' : 'off';
+  }
+
+  function refresh() {
+    const { agent } = store.state;
+    const state = agentState();
     // three shapes, not just colours: solid dot, spinner, hollow ring
-    dot.className = agent ? 'cc-dot cc-dot--ok' : working ? 'cc-spin' : 'chat-ring';
-    statusText.textContent = agent ? 'Listening' : working ? 'Working…' : 'Not listening';
+    dot.className = state === 'listening' ? 'cc-dot cc-dot--ok' : state === 'working' ? 'cc-spin' : 'chat-ring';
+    statusText.textContent = { listening: 'Listening', working: 'Working…', off: 'Not listening' }[state];
     refreshBadge();
-    head.title = agent
-      ? 'Your agent is waiting for prompts from this canvas.'
-      : working ? 'Your agent is working on a prompt. New prompts queue until it is done.'
-      : `Prompts queue until your agent listens. Ask it to "listen to the canvas"${listen ? '' : ' (runs canvas wait)'}.`;
+    head.title = agent ? 'Your agent is waiting for prompts from this canvas.'
+      : state === 'listening' ? 'Your agent is in listen mode. It picks up prompts from this canvas as soon as its current turn ends.'
+      : state === 'working' ? 'Your agent is working on a prompt. New prompts queue until it is done.'
+      : 'Prompts queue until your agent listens. Run /blockout-agent:start in Claude Code, or ask your agent to "listen to the canvas".';
+    renderEmpty();
     const sel = store.state.selection;
     selEl.textContent = sel ? `@${sel}` : '';
     selEl.title = 'The selected object, the playhead and the camera are sent with your message';
@@ -266,11 +304,11 @@ export function mountPrompt(root, { viewport, corner }) {
     if (c.agent || c.working) for (const p of prompts.values()) if (p.status === 'taken') renderPrompt(p);
   });
   function refreshBadge() {
-    const { agent, working } = store.state;
-    const state = open ? null : working && !agent ? 'working' : unread ? 'unread' : !agent ? 'off' : null;
+    const s = agentState();
+    const state = open ? null : s === 'working' ? 'working' : unread ? 'unread' : s === 'off' ? 'off' : null;
     badge.hidden = !state;
     badge.className = `chat-badge${state ? ` is-${state}` : ''}`;
-    toggleBtn.classList.toggle('is-off', !open && !agent && !working);
+    toggleBtn.classList.toggle('is-off', !open && s === 'off');
     const why = { working: ' · agent working', unread: ' · new reply', off: ' · agent not listening' }[state] || '';
     toggleBtn.title = open ? 'Hide chat' : `Show chat (/)${why}`;
   }
