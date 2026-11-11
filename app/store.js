@@ -19,6 +19,8 @@ export const store = {
     agent: false,          // an agent is waiting for prompts
     working: false,        // an agent has taken a prompt and not replied yet
     listen: false,
+    listenStale: false,
+    launch: null,
     exporting: false,
     chat: true,            // chat sidebar open
   },

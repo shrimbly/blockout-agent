@@ -28,20 +28,51 @@ export function mountPrompt(root, { viewport, corner }) {
     'Two people talking at a cafe table, over-the-shoulder, then a cut to the reverse',
   ];
   let emptyState = '';
+  // A command the user copies into their agent: click to copy.
+  const cmd = (text) => h('code.chat-cmd', { title: 'Click to copy', onClick: (e) => {
+    navigator.clipboard?.writeText(text).then(() => { e.target.dataset.copied = ''; setTimeout(() => delete e.target.dataset.copied, 1200); }, () => {});
+  } }, text);
+  const say = (text) => h('b', {}, `“${text}”`);
+  // What to do next depends on how the canvas was started (the server reports it) and whether an agent
+  // was listening and went away.
+  function offState({ launch, listenStale }) {
+    const { by, plugin, checkout, dir } = launch || {};
+    const inFolder = dir ? cmd(`cd ${dir} && claude "listen to the canvas"`) : null;
+    const claudeStep = plugin
+      ? h('li', {}, 'In Claude Code, run ', cmd('/blockout-agent:start'), '.')
+      : checkout && inFolder ? h('li', {}, 'Claude Code: in a terminal, run ', inFolder)
+      : h('li', {}, 'In Claude Code, add the plugin with ', cmd('/plugin marketplace add shrimbly/blockout-agent'), ', install it, then run ', cmd('/blockout-agent:start'), '.');
+    const codexStep = h('li', {}, 'Codex: start it in ', dir ? h('code', {}, dir) : 'this folder', ' and say ', say('listen to the canvas'), '.');
+    if (listenStale) return [
+      h('div.chat-empty-title', {}, 'Your agent stopped listening'),
+      h('p', {}, 'The session that was listening has ended or gone quiet. To reconnect:'),
+      h('ol.chat-steps', {}, by === 'codex' ? h('li', {}, 'In Codex, say ', say('listen to the canvas'), '.') : claudeStep),
+    ];
+    if (by === 'claude') return [
+      h('div.chat-empty-title', {}, 'One step left'),
+      h('p', {}, 'Claude Code started the canvas but isn’t listening to it yet. In that session:'),
+      h('ol.chat-steps', {}, plugin ? h('li', {}, 'Run ', cmd('/blockout-agent:start'), '.') : h('li', {}, 'Say ', say('listen to the canvas'), '.')),
+    ];
+    if (by === 'codex') return [
+      h('div.chat-empty-title', {}, 'One step left'),
+      h('p', {}, 'Codex started the canvas but isn’t listening to it yet. In that session:'),
+      h('ol.chat-steps', {}, h('li', {}, 'Say ', say('listen to the canvas'), '.')),
+    ];
+    return [
+      h('div.chat-empty-title', {}, 'Connect your agent'),
+      h('p', {}, launch ? 'The canvas is running. Your agent builds the scene and the camera move from what you write here, once it is listening:' : 'Your agent builds the scene and the camera move from what you write here, once it is listening:'),
+      h('ol.chat-steps', {}, claudeStep, codexStep),
+    ];
+  }
   function renderEmpty() {
     const state = agentState();
-    if (state === emptyState) return;
-    emptyState = state;
+    const { launch, listenStale } = store.state;
+    const key = state === 'off' ? `off:${listenStale}:${JSON.stringify(launch)}` : state;
+    if (key === emptyState) return;
+    emptyState = key;
     const starters = h('div.chat-starters', {}, ...STARTERS.map((text) =>
       h('button.chat-starter', { type: 'button', onClick: () => { input.value = text; input.dispatchEvent(new Event('input')); input.focus(); } }, text)));
-    const off = [
-      h('div.chat-empty-title', {}, 'Connect your agent'),
-      h('p', {}, 'Your agent builds the scene and the camera move from what you write here.'),
-      h('ol.chat-steps', {},
-        h('li', {}, 'Claude Code: run ', h('code', {}, '/blockout-agent:start'), ', or in a checkout of this repo say ', h('b', {}, '“listen to the canvas”'), '.'),
-        h('li', {}, 'Codex: say ', h('b', {}, '“listen to the canvas”'), '.')),
-      h('p.chat-empty-hint', {}, 'You can write now: messages wait here until your agent connects.'),
-    ];
+    const off = [...offState({ launch, listenStale }), h('p.chat-empty-hint', {}, 'You can write now: messages wait here until your agent connects.')];
     const on = [
       h('div.chat-empty-title', {}, state === 'working' ? 'Your agent is busy' : 'Your agent is listening'),
       h('p', {}, state === 'working'
@@ -293,6 +324,7 @@ export function mountPrompt(root, { viewport, corner }) {
     head.title = agent ? 'Your agent is waiting for prompts from this canvas.'
       : state === 'listening' ? 'Your agent is in listen mode. It picks up prompts from this canvas as soon as its current turn ends.'
       : state === 'working' ? 'Your agent is working on a prompt. New prompts queue until it is done.'
+      : store.state.listenStale ? 'Your agent stopped listening. Prompts queue until it reconnects.'
       : 'Prompts queue until your agent listens. Run /blockout-agent:start in Claude Code, or ask your agent to "listen to the canvas".';
     renderEmpty();
     const sel = store.state.selection;
@@ -300,7 +332,7 @@ export function mountPrompt(root, { viewport, corner }) {
     selEl.title = 'The selected object, the playhead and the camera are sent with your message';
   }
   store.on('state', (c) => {
-    if (c.agent || c.working || c.listen || c.selection || c.time || c.view) refresh();
+    if (c.agent || c.working || c.listen || c.listenStale || c.launch || c.selection || c.time || c.view) refresh();
     if (c.agent || c.working) for (const p of prompts.values()) if (p.status === 'taken') renderPrompt(p);
   });
   function refreshBadge() {
