@@ -1,9 +1,9 @@
 ---
 name: start
-description: Start Camera Canvas - open the blockout canvas in the browser and listen for prompts typed there. Run only when the user invokes /camera-canvas:start.
+description: Start Camera Canvas - open the blockout canvas in the browser and listen for prompts typed there. Run only when the user invokes /blockout-agent:start.
 disable-model-invocation: true
 argument-hint: "[what to block out]"
-allowed-tools: Bash(canvas:*), Bash(command -v canvas), Skill(camera-canvas:camera-canvas)
+allowed-tools: Bash(canvas:*), Bash(command -v canvas), Skill(blockout-agent:camera-canvas)
 ---
 
 Start Camera Canvas for the user, then load the `camera-canvas` skill and follow it for everything after.

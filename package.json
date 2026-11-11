@@ -1,5 +1,5 @@
 {
-  "name": "camera-canvas",
+  "name": "blockout-agent",
   "version": "0.1.0",
   "description": "Minimal three.js blockout canvas driven by your coding agent (Claude Code or Codex).",
   "scripts": {

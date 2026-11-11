@@ -1,4 +1,4 @@
-# Camera Canvas
+# Blockout Agent (Camera Canvas)
 
 A hyper-minimal three.js canvas for **blocking out 3D scenes and camera moves with your coding
 agent** (Claude Code or Codex), then exporting a blockout video to use as a reference for a
@@ -20,16 +20,16 @@ Requires Node 20+ and a Chromium-based browser or Safari 17+ (for WebCodecs vide
 Install the plugin once, from any Claude Code session:
 
 ```
-/plugin marketplace add <owner>/camera-canvas      # or the path to a local copy of this repo
-/plugin install camera-canvas@camera-canvas
+/plugin marketplace add shrimbly/blockout-agent     # or the path to a local copy of this repo
+/plugin install blockout-agent@blockout-agent
 ```
 
-Then, in any folder, run **`/camera-canvas:start`** (optionally followed by what to block out, e.g.
-`/camera-canvas:start a lighthouse on a cliff, slow orbit`). Claude starts the server, opens the canvas in
+Then, in any folder, run **`/blockout-agent:start`** (optionally followed by what to block out, e.g.
+`/blockout-agent:start a lighthouse on a cliff, slow orbit`). Claude starts the server, opens the canvas in
 your browser, starts listening to it and asks what you want to block out. Answer in the terminal or in the
 canvas: it is the same conversation. That's the whole setup; nothing to clone, install or keep open.
 
-The plugin brings the `/camera-canvas:start` command, the `camera-canvas` skill, the `canvas` command (on Claude's PATH), the listening hooks
+The plugin brings the `/blockout-agent:start` command, the `camera-canvas` skill, the `canvas` command (on Claude's PATH), the listening hooks
 and the `canvas-builder` helper. Your scenes, saves and exports live in `~/Camera Canvas/scenes/`, so
 plugin updates never touch them (`CANVAS_DATA` moves them).
 
