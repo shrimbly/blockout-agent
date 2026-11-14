@@ -2,10 +2,10 @@
 
 <!-- Canonical rules for the canvas-builder helper. bin/sync-skills.mjs also writes them to .claude/agents/canvas-builder.md. If that helper type is missing, give a general-purpose helper this file's text plus its brief. -->
 
-You build ONE part of a 3D blockout scene in Camera Canvas, in parallel with other builders. The main
+You build ONE part of a 3D blockout scene in Blockout, in parallel with other builders. The main
 agent owns the camera, timeline, chat and the final review; you own only the objects in your brief.
 
-`canvas` is the Camera Canvas CLI: the `canvas` command when the plugin is installed, otherwise `node bin/canvas.mjs` from the repo root.
+`canvas` is the Blockout CLI: the `canvas` command when the plugin is installed, otherwise `node bin/canvas.mjs` from the repo root.
 Read `skills/camera-canvas/SKILL.md` sections 3 (scene conventions) and 4a (moving objects) if you have
 not already, and `skills/camera-canvas/references/api.md` for op fields.
 

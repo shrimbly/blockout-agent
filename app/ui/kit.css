@@ -1,4 +1,4 @@
-/* Camera Canvas UI kit. Components are .cc-* classes built by app/ui/kit.js. */
+/* Blockout UI kit. Components are .cc-* classes built by app/ui/kit.js. */
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: var(--cc-bg); color: var(--cc-text);
   font: var(--cc-size)/1.35 var(--cc-font); -webkit-font-smoothing: antialiased; }

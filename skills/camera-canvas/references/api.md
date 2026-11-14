@@ -1,4 +1,4 @@
-# Camera Canvas API reference
+# Blockout API reference
 
 Three ways in, all equivalent: the `canvas` CLI (`canvas …` with the plugin, `node bin/canvas.mjs …` in a checkout), JSON ops
 (`canvas op '<json>'`, `canvas ops file.json`), and HTTP on `http://127.0.0.1:5317`.

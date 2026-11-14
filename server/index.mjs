@@ -1,4 +1,4 @@
-// Camera Canvas bridge server. Zero dependencies.
+// Blockout bridge server. Zero dependencies.
 //
 // - serves the app (app/, core/, three.js and mediabunny from node_modules)
 // - owns the scene document: applies ops, keeps undo history, persists to scene.json

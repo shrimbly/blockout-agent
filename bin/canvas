@@ -1,3 +1,3 @@
 #!/bin/sh
-# `canvas` on your PATH (the Claude Code plugin puts this folder there): runs the Camera Canvas CLI.
+# `canvas` on your PATH (the Claude Code plugin puts this folder there): runs the Blockout CLI.
 exec node "$(dirname "$0")/canvas.mjs" "$@"

@@ -1,5 +1,5 @@
 {
-  "description": "Camera Canvas: keep the session that ran `canvas listen on` waiting for prompts typed in the canvas. No-ops in every other session and whenever the canvas server is not running.",
+  "description": "Blockout: keep the session that ran `canvas listen on` waiting for prompts typed in the canvas. No-ops in every other session and whenever the canvas server is not running.",
   "hooks": {
     "Stop": [
       { "hooks": [ { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/bin/canvas.mjs\" hook stop", "timeout": 3600 } ] }

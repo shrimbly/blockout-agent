@@ -1,12 +1,12 @@
 ---
 name: start
-description: Start Camera Canvas - open the blockout canvas in the browser and listen for prompts typed there. Run only when the user invokes /blockout-agent:start.
+description: Start Blockout - open the blockout canvas in the browser and listen for prompts typed there. Run only when the user invokes /blockout-agent:start.
 disable-model-invocation: true
 argument-hint: "[what to block out]"
 allowed-tools: Bash(canvas:*), Bash(command -v canvas), Skill(blockout-agent:camera-canvas)
 ---
 
-Start Camera Canvas for the user, then load the `camera-canvas` skill and follow it for everything after.
+Start Blockout for the user, then load the `camera-canvas` skill and follow it for everything after.
 
 1. Run `canvas up`. It starts the local server (if it is not already running) and opens
    http://127.0.0.1:5317 in the user's browser. If `canvas` is not found, the plugin is not on PATH yet:

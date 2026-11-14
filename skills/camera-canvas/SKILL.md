@@ -1,20 +1,20 @@
 ---
 name: camera-canvas
-description: Operate Camera Canvas, the three.js blockout tool for 3D scenes and camera moves: build and edit the scene, drive the camera timeline, answer prompts typed in the Camera Canvas chat, and export blockout videos for generative video models. Use only for Camera Canvas work: after /blockout-agent:start, when the user names Camera Canvas, when a prompt arrives from the Camera Canvas hooks, or when the user asks to block out a 3D scene or camera move for a video. Not for other canvases (design canvases, HTML canvas, Figma).
+description: Operate Blockout (formerly Camera Canvas), the three.js blockout tool for 3D scenes and camera moves: build and edit the scene, drive the camera timeline, answer prompts typed in the Blockout chat, and export blockout videos for generative video models. Use only for Blockout work: after /blockout-agent:start, when the user names Blockout or Camera Canvas, when a prompt arrives from the Blockout hooks, or when the user asks to block out a 3D scene or camera move for a video. Not for other canvases (design canvases, HTML canvas, Figma).
 allowed-tools: Bash(canvas:*), Bash(node bin/canvas.mjs:*)
 ---
 
-# Camera Canvas
+# Blockout
 
-Camera Canvas is a minimal three.js blockout tool that **you** operate. The user looks at the canvas
+Blockout is a minimal three.js blockout tool that **you** operate. The user looks at the canvas
 in their browser; you change it with the `canvas` CLI. The scene is a JSON document owned by a small
 local server, so every change you make shows up live in the user's tab, is undoable (`⌘Z`), and is
-saved to `scenes/scene.json` (in `~/Camera Canvas/` when installed as a plugin, in the repo for a checkout).
+saved to `scenes/scene.json` (in `~/Blockout/` when installed as a plugin, in the repo for a checkout).
 
 The end product is a **blockout video**: a camera move through primitive shapes, exported as an MP4
 that the user passes to a generative video model as a structure/motion reference.
 
-`canvas` below is the Camera Canvas CLI. With the Claude Code plugin installed it is a command on your
+`canvas` below is the Blockout CLI. With the Claude Code plugin installed it is a command on your
 PATH and works from any folder. In a repo checkout without the plugin, run `node bin/canvas.mjs` from the
 repo root instead (and `npm install` once). `command -v canvas` tells you which you have.
 
@@ -27,7 +27,7 @@ canvas ls        # ALWAYS read the scene before changing it
 ```
 
 The user starts a session with `/blockout-agent:start` (plugin), which runs all three and asks what to
-block out. When they ask for Camera Canvas by name without it, do the same: run all three, then ask in one
+block out. When they ask for Blockout by name without it, do the same: run all three, then ask in one
 line what they want to block out, and mention they can type it in the canvas or here. Don't send them to a
 README or ask them to run commands themselves.
 

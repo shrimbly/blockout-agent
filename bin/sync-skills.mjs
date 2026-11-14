@@ -32,7 +32,7 @@ const agentFile = path.join(ROOT, '.claude', 'agents', 'canvas-builder.md');
 fs.mkdirSync(path.dirname(agentFile), { recursive: true });
 fs.writeFileSync(agentFile, `---
 name: canvas-builder
-description: Builds one part of a Camera Canvas blockout scene (a zone such as "the house", "the street", "the crowd") from a brief written by the main canvas agent, working in parallel with other builders. Use only when the camera-canvas skill's orchestration guide says to fan out.
+description: Builds one part of a Blockout scene (a zone such as "the house", "the street", "the crowd") from a brief written by the main canvas agent, working in parallel with other builders. Use only when the camera-canvas skill's orchestration guide says to fan out.
 tools: Bash, Read, Write
 ---
 

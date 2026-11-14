@@ -3,7 +3,7 @@
   "owner": {
     "name": "Willie"
   },
-  "description": "Camera Canvas: a three.js blockout canvas you drive with Claude.",
+  "description": "Blockout: a three.js blockout canvas you drive with Claude.",
   "plugins": [
     {
       "name": "blockout-agent",
