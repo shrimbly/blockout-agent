@@ -33,6 +33,9 @@ export const PERSON_HEIGHT = { male: 1.8, female: 1.65, child: 1.3 };
 
 export const DEFAULT_COLOR = '#d8d4cc';
 
+// Audio files the timeline can hold (a plain file name inside the scene folder's audio/).
+export const AUDIO_FILE = /^[a-z0-9][a-z0-9._-]*\.(mp3|wav|m4a|aac|ogg|oga|opus|flac|webm)$/i;
+
 export function createDoc() {
   return {
     version: 1,
@@ -385,6 +388,40 @@ export const OPS = {
     }
     if (op.ease != null) { resolveEase(op.ease); tl.keys.forEach((k) => { k.ease = op.ease; }); }
     return { timeline: { duration: tl.duration, fps: tl.fps, interp: tl.interp, speed: tl.speed, keys: tl.keys.length } };
+  },
+
+  /**
+   * The shot's audio track (music or dialogue to pace the camera to; it is mixed into the export).
+   * The file lives in the scene folder's audio/ (uploaded with "canvas audio <file>" or dropped on the
+   * timeline). offset: where the audio's first sample sits on the timeline, in seconds (negative skips
+   * into the file). length: the file's duration, filled in by the browser once decoded.
+   * fit: make the shot end where the audio ends (duration = length + offset). clear: remove the track.
+   */
+  audio(doc, op) {
+    const tl = doc.timeline;
+    if (op.clear) { const had = !!tl.audio; delete tl.audio; return { audio: null, removed: had }; }
+    const a = { ...(tl.audio || {}) };
+    if (op.file != null) {
+      const f = String(op.file);
+      if (!AUDIO_FILE.test(f) || f.includes('..')) throw new Error(`audio.file must be a file name in the scene's audio/ folder (mp3, wav, m4a, aac, ogg, opus, flac, webm), got ${JSON.stringify(op.file)}`);
+      if (f !== a.file) { delete a.length; a.offset = 0; }
+      a.file = f;
+      a.name = op.name != null ? String(op.name) : f;
+    } else if (op.name != null) a.name = String(op.name);
+    if (!a.file) throw new Error('no audio on the timeline yet: load a file first ("canvas audio <file>")');
+    if (op.offset != null) { if (!Number.isFinite(op.offset) || Math.abs(op.offset) > 3600) throw new Error('audio.offset must be seconds (−3600…3600)'); a.offset = round(op.offset); }
+    if (op.volume != null) { if (!(op.volume >= 0 && op.volume <= 4)) throw new Error('audio.volume must be 0–4 (1 = as recorded)'); a.volume = round(op.volume); }
+    if (op.muted != null) a.muted = !!op.muted;
+    if (op.length != null) { if (!(op.length > 0)) throw new Error('audio.length must be > 0 seconds'); a.length = round(op.length); }
+    a.offset ??= 0; a.volume ??= 1; a.muted ??= false;
+    if (op.fit) {
+      if (!a.length) throw new Error('the audio length is not known yet: open the canvas tab so it can read the file, then try again');
+      const d = round(a.length + a.offset);
+      if (!(d > 0)) throw new Error('the audio ends before the shot starts (check the offset)');
+      tl.duration = Math.min(600, d);
+    }
+    tl.audio = a;
+    return { audio: a, duration: tl.duration };
   },
 
   'controls.set'(doc, op) {

@@ -8,6 +8,7 @@ import { mountPrompt } from './prompt.js';
 import { createRenderer } from './render.js';
 import { h, button, segmented, panel, toast, kbd } from './ui/kit.js';
 import { mountSaves } from './saves.js';
+import { audio } from './audio.js';
 import controls from './controls/index.js';
 
 const $ = (id) => document.getElementById(id);
@@ -15,7 +16,8 @@ const viewport = new Viewport($('stage'));
 const renderer = createRenderer(viewport);
 const timeline = mountTimeline($('timeline'), { viewport, exporter: renderer });
 const prompt = mountPrompt($('prompt'), { viewport, corner: $('corner') });
-window.canvas = { store, viewport, renderer, timeline }; // handy in the devtools console
+audio.attach();
+window.canvas = { store, viewport, renderer, timeline, audio }; // handy in the devtools console
 
 // ---------- selection chip (top left) ----------
 const selName = h('span.cc-mono.sel-name');
@@ -144,6 +146,14 @@ const RPC = {
   snapshot: (p) => renderer.snapshot(p),
   storyboard: (p) => renderer.storyboard(p),
   export: (p) => renderer.exportVideo(p),
+  // decode the audio track (recording its length); with beats, also find its tempo and onsets
+  audio: async ({ beats } = {}) => {
+    if (!store.doc.timeline.audio) throw new Error('no audio on the timeline');
+    if (beats) return audio.analyze();
+    await audio.load();
+    if (!audio.buffer) throw new Error(audio.error || 'the audio could not be decoded');
+    return { file: audio.file, length: Math.round(audio.buffer.duration * 1000) / 1000 };
+  },
 };
 
 // ---------- server connection ----------
@@ -195,16 +205,19 @@ store.on('state', (c) => { if (c.selection || c.gizmo) refreshSel(); });
 refreshSel();
 
 // ---------- frame loop ----------
-let last = performance.now();
+// While the audio track plays, time comes from the audio clock so picture and sound stay locked.
+let last = performance.now(), lastT = null;
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   if (store.doc && store.state.playing) {
     const D = store.doc.timeline.duration;
-    let t = store.state.time + dt;
-    if (t >= D) { if (store.state.loop) t %= D; else { t = D; store.set({ playing: false }); } }
+    if (lastT !== null && Math.abs(store.state.time - lastT) > 1e-6) audio.play(store.state.time); // seeked while playing
+    let t = audio.now() ?? store.state.time + dt;
+    if (t >= D) { if (store.state.loop) { t %= D; audio.play(t); } else { t = D; store.set({ playing: false }); } }
     store.set({ time: t, camDirty: false });
-  }
+    lastT = t;
+  } else lastT = null;
   viewport.tick();
   requestAnimationFrame(frame);
 }

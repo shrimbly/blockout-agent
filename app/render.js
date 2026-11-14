@@ -2,9 +2,12 @@
 // Video: frame-accurate render through the shot camera, encoded in the browser with WebCodecs
 // (mediabunny, H.264 MP4 where available, VP9 otherwise), then uploaded to the server's exports/ folder.
 // If the browser cannot encode H.264 and ffmpeg is installed, the server transcodes to H.264.
+// The timeline's audio track (if any, and not muted) is mixed down for the shot and muxed in (AAC, or Opus
+// re-encoded to AAC by the server when ffmpeg is there).
 
 import { store } from './store.js';
 import { toast, h } from './ui/kit.js';
+import { audio } from './audio.js';
 
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
@@ -74,7 +77,15 @@ export function createRenderer(viewport) {
       const first = viewport.renderShot(0, w, hh, { grid });
       const source = new M.CanvasSource(first, { codec, bitrate: Math.round(w * hh * rate * 0.18), keyFrameInterval: 1 });
       output.addVideoTrack(source, { frameRate: rate });
+      const mix = await audio.mixdown(total / rate);
+      let aCodec = null, aSource = null;
+      if (mix) {
+        aCodec = await M.getFirstEncodableAudioCodec(['aac', 'opus'], { numberOfChannels: mix.numberOfChannels, sampleRate: mix.sampleRate });
+        if (aCodec) { aSource = new M.AudioBufferSource({ codec: aCodec, bitrate: 192e3 }); output.addAudioTrack(aSource); }
+        else toast('This browser cannot encode audio: exporting the video without it', { kind: 'error' });
+      }
       await output.start();
+      if (aSource) { await aSource.add(mix); aSource.close(); }
       for (let i = 0; i < total; i++) {
         const t = i / rate;
         viewport.renderShot(t, w, hh, { grid });
@@ -84,8 +95,9 @@ export function createRenderer(viewport) {
       await output.finalize();
       const blob = new Blob([target.buffer], { type: 'video/mp4' });
       const file = `${safeName(name || store.doc.meta.name)}-${stamp()}.mp4`;
-      const r = await upload(blob, file, codec === 'avc' ? '' : '&transcode=h264');
+      const r = await upload(blob, file, codec !== 'avc' ? '&transcode=h264' : aCodec && aCodec !== 'aac' ? '&transcode=aac' : '');
       const result = { path: r.path, url: r.url, frames: total, fps: rate, width: w, height: hh, codec: codec === 'avc' ? 'h264' : `${codec} (transcoded to h264 if ffmpeg was available)`, bytes: blob.size };
+      if (aCodec) result.audio = aCodec === 'aac' ? 'aac' : `${aCodec} (transcoded to aac if ffmpeg was available)`;
       progress.remove();
       toast(h('span', {}, 'Exported ', h('a', { href: r.url, target: '_blank' }, r.path.split('/').pop())), { ms: 8000 });
       return result;
@@ -102,7 +114,15 @@ export function createRenderer(viewport) {
     const [w, hh] = size({ width, height });
     const canvas = viewport.renderShot(0, w, hh, { grid });
     const stream = canvas.captureStream(rate);
-    const type = ['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm'].find((t) => MediaRecorder.isTypeSupported(t));
+    const mix = await audio.mixdown(tl.duration);
+    let mixCtx = null, mixSrc = null;
+    if (mix) { // play the mixdown into the recording, in real time alongside the frames
+      mixCtx = new AudioContext({ sampleRate: mix.sampleRate });
+      const dest = mixCtx.createMediaStreamDestination();
+      mixSrc = mixCtx.createBufferSource(); mixSrc.buffer = mix; mixSrc.connect(dest);
+      dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+    }
+    const type = (mix ? ['video/mp4;codecs=avc1,mp4a.40.2', 'video/webm;codecs=vp9,opus'] : []).concat(['video/mp4;codecs=avc1', 'video/webm;codecs=vp9', 'video/webm']).find((t) => MediaRecorder.isTypeSupported(t));
     const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 8e6 });
     const chunks = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -110,6 +130,7 @@ export function createRenderer(viewport) {
     try {
       const done = new Promise((r) => { rec.onstop = r; });
       rec.start();
+      mixSrc?.start();
       const t0 = performance.now();
       await new Promise((resolve) => {
         const step = () => {
@@ -126,7 +147,7 @@ export function createRenderer(viewport) {
       const ext = rec.mimeType.includes('mp4') ? 'mp4' : 'webm';
       const r = await upload(blob, `${safeName(name || store.doc.meta.name)}-${stamp()}.${ext}`, '&transcode=h264');
       return { path: r.path, url: r.url, frames: Math.round(tl.duration * rate), fps: rate, width: w, height: hh, codec: `${rec.mimeType} (realtime)`, bytes: blob.size };
-    } finally { store.set({ exporting: false }); }
+    } finally { store.set({ exporting: false }); mixCtx?.close(); }
   }
 
   return { snapshot, storyboard, exportVideo };

@@ -48,6 +48,7 @@ Send one op or an array (applied atomically: all or nothing, one undo step).
 | `key.remove` | `id` or `index` | `{ removed }` |
 | `key.clear` | | `{ removed }` |
 | `timeline` | `duration`, `retime?` (scale key times), `fps` (1–120, decimals allowed e.g. 23.976; default 24), `interp` (`smooth`/`linear`), `speed` (ease, whole shot), `ease` (set every key) | `{ timeline }` |
+| `audio` | `file` (name in the scene's `audio/`, from `POST /api/audio`), `name?`, `offset` (s on the timeline where the audio starts; negative skips into it), `volume` (0–4), `muted`, `length` (set by the tab), `fit` (duration = length + offset), `clear` | `{ audio, duration }` |
 | `controls.set` | `key`, `value` (any JSON; omit to delete) — state for custom controls | `{ key }` |
 | `load` | `doc` — replace the whole scene | |
 | `batch` | `ops: []` | `{ results }` |
@@ -96,7 +97,11 @@ shot A's last (hold) key.
 
 `seek <s>`, `play`, `pause`, `view shot|free`, `select <id|none>`, `frame [id]`, `key --from-view`,
 `snapshot [--t s] [--view shot|free] [--out file]`, `storyboard [--frames n] [--cols n]`,
-`export [--fps] [--width --height] [--grid on|off] [--name]`.
+`export [--fps] [--width --height] [--grid on|off] [--name]` (mixes in the audio track),
+`audio --beats [--json]` and `audio --fit` (the tab decodes the file).
+
+`canvas audio <file> [--offset s] [--volume v] [--mute on|off] [--fit]` uploads and sets the audio track;
+`canvas audio` alone prints it; `canvas audio --clear` removes it.
 
 ## Save / load
 
@@ -110,12 +115,13 @@ shot A's last (hold) key.
 | `GET /api/doc` | | `{ rev, doc }` |
 | `GET /api/summary` | | readable one-line-per-object summary |
 | `GET /api/status` | | `{ agent, listen, waiting, queued, rev, tabs, scene, exports }` |
-| `POST /api/op` | `{ ops, label? }` | `{ ok, rev, results }` or `{ ok: false, error }` |
+| `POST /api/op` | `{ ops, label?, amend? }` (amend: not an undo step) | `{ ok, rev, results }` or `{ ok: false, error }` |
 | `POST /api/undo`, `/api/redo` | | |
 | `GET /api/saves` | | `{ saves: [{ name, savedAt, objects, keys, thumb }] }` |
 | `POST /api/save` | `{ name?, overwrite? }` | `{ name, path }`; 409 if it exists |
 | `POST /api/load` | `{ name }` | `{ name, objects, keys }` (undoable) |
-| `POST /api/rpc` | `{ method, params, timeout? }` (methods: camera, state, seek, play, pause, view, select, frame, snapshot, storyboard, export) | `{ ok, result }` |
+| `POST /api/audio?name=song.mp3` | raw audio bytes | `{ file, name, path, url }`: stored in the scene folder's `audio/`; then set it with the `audio` op |
+| `POST /api/rpc` | `{ method, params, timeout? }` (methods: camera, state, seek, play, pause, view, select, frame, snapshot, storyboard, export, audio) | `{ ok, result }` |
 | `GET /api/prompt/next?wait=600` | long poll | `{ prompt }` or `{ prompt: null }` on timeout |
 | `POST /api/say` | `{ text, reply?, done? }` | |
 | `POST /api/listen` | `{ on, session?, cwd? }` | the agent session that owns listen mode |

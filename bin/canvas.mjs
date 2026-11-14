@@ -60,6 +60,11 @@ Camera timeline
   canvas keys-clear
   canvas timeline [--duration 6 [--retime]] [--fps 24] [--interp smooth|linear]
                   [--speed name|x1,y1,x2,y2] [--ease name]   (--ease sets every segment)
+  canvas audio [file] [--offset s] [--volume 1] [--mute on|off] [--fit]
+                  load a music / dialogue track onto the timeline (mixed into the export). --offset: where
+                  the audio starts on the timeline (negative skips into it); --fit: shot length = audio
+  canvas audio --beats [--json]             tempo and onset times inside the shot (needs the tab), to key/cut on
+  canvas audio --clear                      remove the audio track
   canvas seek <seconds> | play | pause | view shot|free | select <id|none> | frame [id]
   eases: ${Object.keys(EASES).join(' ')}
 
@@ -91,7 +96,7 @@ Raw / batch
 
 // ---------- helpers ----------
 // Flags that never take a value, so `say --working "text"` keeps "text" as the message.
-const BOOLEAN_FLAGS = new Set(['working', 'json', 'retime', 'keys', 'from-view', 'open', 'no-open', 'help', 'overwrite']);
+const BOOLEAN_FLAGS = new Set(['working', 'json', 'retime', 'keys', 'from-view', 'open', 'no-open', 'help', 'overwrite', 'fit', 'clear', 'beats']);
 
 function parseArgs(argv) {
   const pos = [], flags = {};
@@ -319,6 +324,7 @@ const commands = {
       `env: background ${s.env.background}, ground ${s.env.ground ? 'on' : 'off'}, grid ${s.env.grid ? 'on' : 'off'}, fog ${s.env.fog}, people ${s.env.people || 'low'}`,
       `objects (${s.objects.length}):`, ...s.objects.map((o) => `  ${o}`),
       `timeline: ${s.timeline.duration}s @ ${s.timeline.fps}fps, ${s.timeline.interp} path, speed ${JSON.stringify(s.timeline.speed)}`,
+      ...(s.timeline.audio ? [`audio: ${s.timeline.audio.name} at ${s.timeline.audio.offset}s${s.timeline.audio.length ? `, ${s.timeline.audio.length}s long` : ''}, volume ${s.timeline.audio.volume}${s.timeline.audio.muted ? ', muted' : ''}`] : []),
       `camera keys (${s.keys.length}):`, ...s.keys.map((k) => `  ${k}`),
     ];
     out(lines.join('\n'));
@@ -422,6 +428,34 @@ const commands = {
     out((await op(o)).results[0].timeline);
   },
 
+  async audio({ pos, flags }) {
+    const o = { op: 'audio' };
+    if (pos[0]) {
+      const file = path.resolve(String(pos[0]));
+      if (!fs.existsSync(file)) throw new Error(`no such file: ${pos[0]}`);
+      const res = await fetch(`${BASE}/api/audio?name=${encodeURIComponent(path.basename(file))}`, { method: 'POST', body: fs.readFileSync(file) })
+        .catch(() => { throw new Error(`canvas server is not running at ${BASE}`); });
+      const up = await res.json();
+      if (!up.ok) throw new Error(up.error);
+      Object.assign(o, { file: up.file, name: up.name });
+    }
+    if (flags.clear) { await op({ op: 'audio', clear: true }, 'remove audio'); return out('removed the audio track'); }
+    if (flags.offset != null) o.offset = num(flags.offset);
+    if (flags.volume != null) o.volume = num(flags.volume);
+    if (flags.mute != null) o.muted = bool(flags.mute);
+    if (Object.keys(o).length > 1) await op(o, pos[0] ? 'load audio' : 'edit audio');
+    let info = null;
+    if (flags.fit || flags.beats) info = await rpc('audio', { beats: !!flags.beats }, 60000); // the tab decodes it (and records its length)
+    if (flags.fit) await op({ op: 'audio', fit: true }, 'fit shot to audio');
+    const a = (await api('GET', '/api/doc')).doc.timeline;
+    if (!a.audio) return out('no audio on the timeline (load one: canvas audio song.mp3)');
+    if (flags.beats && flags.json) return out(info);
+    const au = a.audio;
+    const lines = [`audio: ${au.name} (${au.file}) ${au.length ? `${au.length}s` : 'length not read yet'}, starts at ${au.offset}s on the timeline, volume ${au.volume}${au.muted ? ', muted' : ''}; shot ${a.duration}s`];
+    if (info?.beats) lines.push(`tempo ≈ ${info.tempo ? `${info.tempo} bpm (beat every ${info.beat}s)` : 'not found'}`, `beats in the shot: ${info.beats.join(' ') || 'none'}`, `strong onsets: ${info.onsets.join(' ') || 'none'}`);
+    out(lines.join('\n'));
+  },
+
   async seek({ pos }) { out(await rpc('seek', { t: num(pos[0] ?? 0) })); },
   async play() { out(await rpc('play')); },
   async pause() { out(await rpc('pause')); },
@@ -447,7 +481,7 @@ const commands = {
       grid: flags.grid != null ? bool(flags.grid) : undefined, name: flags.name ? String(flags.name) : undefined,
     };
     const r = await rpc('export', params, 30 * 60 * 1000);
-    out(`${copyOut(r.path, flags.out)}\n${r.frames} frames, ${r.width}x${r.height} @ ${r.fps}fps, ${r.codec}, ${(r.bytes / 1e6).toFixed(2)} MB`);
+    out(`${copyOut(r.path, flags.out)}\n${r.frames} frames, ${r.width}x${r.height} @ ${r.fps}fps, ${r.codec}${r.audio ? ` + ${r.audio} audio` : ''}, ${(r.bytes / 1e6).toFixed(2)} MB`);
   },
 
   async wait({ flags }) {

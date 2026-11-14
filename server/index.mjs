@@ -13,7 +13,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
-import { applyOps, createDoc, migrate, describe } from '../core/doc.js';
+import { applyOps, createDoc, migrate, describe, AUDIO_FILE } from '../core/doc.js';
+import crypto from 'node:crypto';
 import { dataDir } from './paths.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,6 +41,8 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif',
   '.svg': 'image/svg+xml', '.mp4': 'video/mp4', '.webm': 'video/webm', '.md': 'text/markdown; charset=utf-8',
+  '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.ogg': 'audio/ogg', '.oga': 'audio/ogg',
+  '.opus': 'audio/ogg', '.flac': 'audio/flac',
 };
 
 export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = false } = {}) {
@@ -48,6 +51,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   const exportsDir = path.resolve(process.env.CANVAS_EXPORTS || path.join(path.dirname(scenePath), 'exports'));
   const savesDir = path.join(path.dirname(scenePath), 'saved');
   const uploadsDir = path.join(workDir, 'uploads');
+  const audioDir = path.join(path.dirname(scenePath), 'audio'); // the timeline's audio tracks, shared by every save
   fs.mkdirSync(workDir, { recursive: true });
   fs.mkdirSync(exportsDir, { recursive: true });
   const inboxPath = path.join(workDir, 'inbox.jsonl');
@@ -89,9 +93,12 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
   }
   persist();
 
-  function commit(next, source, label) {
-    undo.push(doc); if (undo.length > 200) undo.shift();
-    redo.length = 0;
+  // amend: a bookkeeping change (e.g. the browser recording an audio file's length) that is not an undo step
+  function commit(next, source, label, { amend = false } = {}) {
+    if (!amend) {
+      undo.push(doc); if (undo.length > 200) undo.shift();
+      redo.length = 0;
+    }
     doc = next; rev++;
     persist();
     broadcast('doc', { doc, rev, source, label });
@@ -255,6 +262,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
     ['/exports/', exportsDir],
     ['/saved/', savesDir],
     ['/uploads/', uploadsDir],
+    ['/audio/', audioDir],
     ['/', path.join(ROOT, 'app')],
   ];
 
@@ -266,7 +274,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
         rev, scene: scenePath, exports: exportsDir, ...statusPayload(), tabs: clients.size,
         meta: doc.meta, env: doc.env,
         objects: doc.objects.map(describe),
-        timeline: { duration: tl.duration, fps: tl.fps, interp: tl.interp, speed: tl.speed },
+        timeline: { duration: tl.duration, fps: tl.fps, interp: tl.interp, speed: tl.speed, audio: tl.audio || null },
         keys: tl.keys.map((k) => `${k.id} t=${k.t} pos=${k.position.join(',')} target=${k.target.join(',')} fov=${k.fov}${k.roll ? ` roll=${k.roll}` : ''} ease=${JSON.stringify(k.ease)}`),
       });
     },
@@ -278,7 +286,7 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       if (body.source !== 'ui') touchAgent();
       try {
         const { doc: next, results } = applyOps(doc, ops);
-        commit(next, body.source || 'agent', body.label || [].concat(ops).map((o) => o.op).join(', '));
+        commit(next, body.source || 'agent', body.label || [].concat(ops).map((o) => o.op).join(', '), { amend: !!body.amend });
         json(res, 200, { ok: true, rev, results });
       } catch (e) { json(res, 400, { ok: false, error: e.message }); }
     },
@@ -364,8 +372,25 @@ export function startServer({ port = 5317, host = '127.0.0.1', scene, quiet = fa
       const file = path.join(exportsDir, name);
       await fsp.writeFile(file, await readBody(req));
       let out = file;
-      if (url.searchParams.get('transcode') === 'h264') out = transcodeH264(file) || file;
+      const tc = url.searchParams.get('transcode');
+      if (tc === 'h264') out = transcodeH264(file) || file;
+      else if (tc === 'aac') out = transcodeAac(file) || file;
       json(res, 200, { ok: true, path: out, url: `/exports/${path.basename(out)}` });
+    },
+
+    // An audio file for the timeline: saved under the scene folder's audio/ by a name made from the file's
+    // name and content, so loading the same file twice reuses it. The caller then sets it with the audio op.
+    'POST /api/audio': async (req, res, url) => {
+      const orig = path.basename(url.searchParams.get('name') || 'audio.mp3');
+      const ext = (path.extname(orig).toLowerCase() || '.mp3').slice(0, 6);
+      const body = await readBody(req, 300 * 1024 * 1024);
+      if (!body.length) return json(res, 400, { ok: false, error: 'empty audio file' });
+      const stem = orig.slice(0, orig.length - path.extname(orig).length).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'audio';
+      const file = `${stem}-${crypto.createHash('sha1').update(body).digest('hex').slice(0, 8)}${ext}`;
+      if (!AUDIO_FILE.test(file)) return json(res, 400, { ok: false, error: `unsupported audio type "${ext}" (use mp3, wav, m4a, aac, ogg, opus, flac or webm)` });
+      fs.mkdirSync(audioDir, { recursive: true });
+      fs.writeFileSync(path.join(audioDir, file), body);
+      json(res, 200, { ok: true, file, name: orig, path: path.join(audioDir, file), url: `/audio/${file}`, bytes: body.length });
     },
 
     // ----- prompts: canvas -> agent -----
@@ -495,11 +520,22 @@ function transcodeH264(file) {
   if (ffmpegOk === undefined) ffmpegOk = spawnSync('ffmpeg', ['-version']).status === 0;
   if (!ffmpegOk) return null;
   const out = file.replace(/\.(webm|mp4)$/i, '') + '.h264.mp4';
-  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-movflags', '+faststart', out]);
+  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '18', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', out]);
   if (r.status !== 0) return null;
   fs.renameSync(out, file.replace(/\.(webm|mp4)$/i, '.mp4'));
   if (!file.endsWith('.mp4')) fs.unlinkSync(file);
   return file.replace(/\.(webm|mp4)$/i, '.mp4');
+}
+
+/** The browser could encode H.264 but not AAC (its audio is Opus): re-encode just the audio to AAC, which every player reads. */
+function transcodeAac(file) {
+  if (ffmpegOk === undefined) ffmpegOk = spawnSync('ffmpeg', ['-version']).status === 0;
+  if (!ffmpegOk || !file.endsWith('.mp4')) return null;
+  const out = file.replace(/\.mp4$/i, '.aac.mp4');
+  const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', out]);
+  if (r.status !== 0) return null;
+  fs.renameSync(out, file);
+  return file;
 }
 
 // Allow `node server/index.mjs` directly.

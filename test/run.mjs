@@ -238,3 +238,27 @@ test('launchInfo tells Claude Code, Codex and a terminal apart, and finds the pl
   assert.equal(launchInfo({ CLAUDE_CONFIG_DIR: none }).plugin, true);
   assert.equal(launchInfo({}, '/Users/x/.claude/plugins/cache/blockout-agent/0.3.0').plugin, true);
 });
+
+test('audio op: load, offset, volume, fit, replace, clear', () => {
+  assert.throws(() => applyOps(createDoc(), { op: 'audio', offset: 1 }), /no audio on the timeline/);
+  assert.throws(() => applyOps(createDoc(), { op: 'audio', file: '../x.mp3' }), /file name/);
+  assert.throws(() => applyOps(createDoc(), { op: 'audio', file: 'song.txt' }), /file name/);
+  let { doc } = applyOps(createDoc(), { op: 'audio', file: 'song-1.mp3', name: 'Song.mp3' });
+  assert.deepEqual(doc.timeline.audio, { file: 'song-1.mp3', name: 'Song.mp3', offset: 0, volume: 1, muted: false });
+  assert.throws(() => applyOps(doc, { op: 'audio', fit: true }), /length is not known/);
+  ({ doc } = applyOps(doc, { op: 'audio', length: 12.3456, offset: -2, volume: 0.5, muted: true }));
+  assert.equal(doc.timeline.audio.length, 12.346);
+  assert.equal(doc.timeline.audio.offset, -2);
+  assert.equal(doc.timeline.audio.muted, true);
+  ({ doc } = applyOps(doc, { op: 'audio', fit: true }));
+  assert.equal(doc.timeline.duration, 10.346);
+  assert.throws(() => applyOps(doc, { op: 'audio', volume: 9 }), /volume/);
+  // a new file resets the offset and the known length, keeps volume
+  ({ doc } = applyOps(doc, { op: 'audio', file: 'other.wav' }));
+  assert.equal(doc.timeline.audio.offset, 0);
+  assert.equal(doc.timeline.audio.length, undefined);
+  assert.equal(doc.timeline.audio.volume, 0.5);
+  assert.equal(migrate(doc).timeline.audio.file, 'other.wav');
+  ({ doc } = applyOps(doc, { op: 'audio', clear: true }));
+  assert.equal(doc.timeline.audio, undefined);
+});
