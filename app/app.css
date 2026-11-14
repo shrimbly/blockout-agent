@@ -201,6 +201,8 @@ body.has-audio :is(.shot-pop, .audio-pop), body.has-audio .curve-pop { bottom: 1
 .curve-canvas { border-radius: var(--cc-radius); background: var(--cc-surface-sunk); cursor: crosshair; align-self: center; touch-action: none; }
 .curve-presets { display: flex; flex-wrap: wrap; gap: 2px; }
 .curve-presets .cc-btn { height: 20px; padding: 0 6px; font-size: var(--cc-size-sm); }
+.curve-all { align-self: flex-start; height: 22px; padding: 0 8px; font-size: var(--cc-size-sm); }
+.curve-all[hidden] { display: none; }
 .curve-help { white-space: normal; line-height: 1.4; }
 
 #offline { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); padding: 8px 12px; color: var(--cc-danger); z-index: 40; }

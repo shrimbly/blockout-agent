@@ -56,6 +56,7 @@ Camera timeline
   canvas key --t 2 --pos x,y,z --target x,y,z [--fov 40 | --lens 35] [--roll 0] [--ease name|x1,y1,x2,y2]
   canvas key --t 2 --from-view              key the camera the user is looking through right now
   canvas key-set <keyId|index> [same flags] change a key (e.g. --ease snap, --t 3)
+  canvas ease-all <name|x1,y1,x2,y2>        give every camera segment that ease (cuts stay cuts; --from <keyId> copies a key's)
   canvas key-rm <keyId|index>
   canvas keys-clear
   canvas timeline [--duration 6 [--retime]] [--fps 24] [--interp smooth|linear]
@@ -384,6 +385,15 @@ const commands = {
     if (flags['from-view']) { const cam = await rpc('camera'); Object.assign(k, { position: cam.position, target: cam.target, fov: cam.fov }); }
     const r = await op({ op: 'key.update', ...keyRef(pos[0]), ...k });
     out(`updated key ${r.results[0].id}`);
+  },
+  async 'ease-all'({ pos, flags }) {
+    if (!pos[0] && !flags.from) throw new Error('usage: canvas ease-all <easeName|x1,y1,x2,y2> | --from <keyId>');
+    const o = { op: 'key.easeAll' };
+    if (flags.from) o.from = keyRef(String(flags.from)).id ?? keyRef(String(flags.from)).index;
+    else o.ease = easeArg(pos[0]);
+    if (flags.cuts) o.cuts = true;
+    const r = (await op(o, 'ease all segments')).results[0];
+    out(`set the ease on ${r.updated} segment${r.updated === 1 ? '' : 's'}`);
   },
   async 'key-rm'({ pos }) { const r = await op({ op: 'key.remove', ...keyRef(pos[0]) }); out(`removed key ${r.results[0].removed}`); },
   async 'keys-clear'() { const r = await op({ op: 'key.clear' }); out(`removed ${r.results[0].removed} keys`); },

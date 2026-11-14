@@ -310,6 +310,23 @@ export const OPS = {
     return { id: k.id };
   },
 
+  /**
+   * Give every camera segment the same ease (each key but the last). Cuts (hold keys) stay cuts unless
+   * cuts: true. Pass from: <keyId> to copy that key's ease instead of naming one.
+   */
+  'key.easeAll'(doc, op) {
+    const keys = [...doc.timeline.keys].sort((a, b) => a.t - b.t);
+    const ease = op.from != null ? findKey(doc, op.from).ease : op.ease;
+    if (ease == null) throw new Error('key.easeAll needs ease or from');
+    let n = 0;
+    for (const k of keys.slice(0, -1)) {
+      if (!op.cuts && resolveEase(k.ease) === 'hold') continue;
+      Object.assign(k, normKey({ ease }, k));
+      n++;
+    }
+    return { updated: n, ease: keys[0]?.ease };
+  },
+
   'key.remove'(doc, op) {
     const k = findKey(doc, op.id ?? op.index);
     doc.timeline.keys = doc.timeline.keys.filter((x) => x !== k);

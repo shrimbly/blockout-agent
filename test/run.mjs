@@ -262,3 +262,20 @@ test('audio op: load, offset, volume, fit, replace, clear', () => {
   ({ doc } = applyOps(doc, { op: 'audio', clear: true }));
   assert.equal(doc.timeline.audio, undefined);
 });
+
+test('key.easeAll gives every segment one ease, keeps cuts, and can copy a key', () => {
+  let { doc } = applyOps(createDoc(), [{ op: 'key.clear' },
+    { op: 'key.add', t: 0, position: [0, 1, 5], target: [0, 1, 0] },
+    { op: 'key.add', t: 1, position: [1, 1, 5], target: [0, 1, 0], ease: 'hold' },
+    { op: 'key.add', t: 1.1, position: [3, 1, 5], target: [0, 1, 0] },
+    { op: 'key.add', t: 3, position: [4, 1, 5], target: [0, 1, 0], ease: 'linear' }]);
+  const ids = () => [...doc.timeline.keys].sort((a, b) => a.t - b.t);
+  const first = ids()[0].id;
+  ({ doc } = applyOps(doc, { op: 'key.update', id: first, ease: [0.2, 0, 0.3, 1] }));
+  const r = applyOps(doc, { op: 'key.easeAll', from: first });
+  doc = r.doc;
+  assert.equal(r.results[0].updated, 2);
+  assert.deepEqual(ids().map((k) => k.ease), [[0.2, 0, 0.3, 1], 'hold', [0.2, 0, 0.3, 1], 'linear']);
+  ({ doc } = applyOps(doc, { op: 'key.easeAll', ease: 'easeIn', cuts: true }));
+  assert.deepEqual(ids().slice(0, 3).map((k) => k.ease), ['easeIn', 'easeIn', 'easeIn']);
+});
