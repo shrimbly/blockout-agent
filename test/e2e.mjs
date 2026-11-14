@@ -409,6 +409,34 @@ try {
   await page.waitForFunction(() => document.querySelector('.tl-audio').hidden && !document.body.classList.contains('has-audio'));
   ok(true, 'audio --clear removes the lane');
 
+  // multi-select keys: shift-click a range, ctrl/cmd-click one at a time, drag one to move them all
+  cli('clear', '--keys');
+  for (const t of [0, 1, 2, 3]) cli('key', '--t', String(t), '--pos', `${t},2,8`, '--target', '0,1,0');
+  await page.waitForFunction(() => window.canvas.store.doc.timeline.keys.length === 4);
+  await page.evaluate(() => window.canvas.store.set({ key: null, selection: null }));
+  const mb = await page.locator('.tl-track').boundingBox();
+  const mx = (t) => mb.x + 14 + (t / 4) * (mb.width - 28), my = mb.y + mb.height / 2 + 6;
+  const kt = () => JSON.parse(cli('doc')).timeline.keys.map((k) => k.t).sort((a, b) => a - b);
+  await page.mouse.click(mx(0), my); await page.waitForTimeout(80);
+  await page.keyboard.down('Shift'); await page.mouse.click(mx(2), my); await page.keyboard.up('Shift');
+  await page.waitForTimeout(80);
+  ok(/3 keys/.test(await page.locator('.tl-keytime').textContent()), 'shift-click selects every key in the range');
+  await page.mouse.move(mx(1), my); await page.mouse.down(); await page.mouse.move(mx(1.25), my, { steps: 4 }); await page.mouse.move(mx(1.5), my, { steps: 4 }); await page.mouse.up();
+  await page.waitForFunction(() => window.canvas.store.doc.timeline.keys.some((k) => Math.abs(k.t - 0.5) < 1e-3));
+  ok(JSON.stringify(kt()) === JSON.stringify([0.5, 1.5, 2.5, 3]), `dragging one selected key moves the whole range (${kt()})`);
+  cli('undo');
+  ok(JSON.stringify(kt()) === JSON.stringify([0, 1, 2, 3]), 'one undo puts the range back');
+  await page.waitForTimeout(150);
+  await page.mouse.click(mx(1), my); await page.waitForTimeout(80);
+  await page.keyboard.down('Control'); await page.mouse.click(mx(3), my); await page.keyboard.up('Control');
+  await page.waitForTimeout(80);
+  ok(/2 keys/.test(await page.locator('.tl-keytime').textContent()), 'ctrl-click adds one key to the selection');
+  await page.mouse.move(mx(3), my); await page.mouse.down(); await page.mouse.move(mx(2.75), my, { steps: 4 }); await page.mouse.move(mx(2.5), my, { steps: 4 }); await page.mouse.up();
+  await page.waitForFunction(() => window.canvas.store.doc.timeline.keys.some((k) => Math.abs(k.t - 0.5) < 1e-3));
+  ok(JSON.stringify(kt()) === JSON.stringify([0, 0.5, 2, 2.5]), `only the ctrl-picked keys move (${kt()})`);
+  await page.keyboard.press('Backspace'); await page.waitForTimeout(200);
+  ok(JSON.stringify(kt()) === JSON.stringify([0, 2]), 'Backspace deletes every selected key');
+
   ok(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 } finally {
   await browser.close();

@@ -80,7 +80,16 @@ export function mountTimeline(root, { viewport, exporter }) {
   const track = h('canvas.tl-track');
   root.append(bar, track, audioTrack.lane);
   const ctx = track.getContext('2d');
-  let drag = null; // { kind: 'key'|'scrub', id, t, moved }
+  let drag = null; // { kind: 'key'|'okey'|'scrub', id, t, moved }; a key drag moves every selected key
+  // Selected camera keys. store.state.key is the primary one (its ease, lens, time show in the bar);
+  // shift-click adds the range from it, ctrl/cmd-click toggles one, and dragging any of them moves them all.
+  let selKeys = new Set();
+  const syncSel = () => {
+    const k = store.state.key;
+    if (!k) selKeys.clear();
+    else if (!selKeys.has(k)) selKeys = new Set([k]);
+    for (const id of selKeys) if (!store.keyById(id)) selKeys.delete(id);
+  };
 
   const dur = () => store.doc.timeline.duration;
   const fps = () => store.doc.timeline.fps;
@@ -89,9 +98,9 @@ export function mountTimeline(root, { viewport, exporter }) {
   const tOf = (x, free) => { const t = ((x - PAD) / (width() - PAD * 2)) * dur(); return free ? t : Math.max(0, Math.min(dur(), t)); };
   const snap = (t, e) => (e?.shiftKey ? t : Math.round(t * fps()) / fps());
   const keys = () => [...store.doc.timeline.keys].sort((a, b) => a.t - b.t);
-  // While a key is dragged, it (and the other half of its cut) is drawn at the drag time.
-  const liveKeys = () => keys().map((k) => (drag?.kind === 'key' && drag.id === k.id ? { ...k, t: drag.t }
-    : drag?.kind === 'key' && drag.partner === k.id ? { ...k, t: drag.t + drag.offset } : k)).sort((a, b) => a.t - b.t);
+  // While keys are dragged, they (and the other halves of their cuts) are drawn shifted by the drag.
+  const liveKeys = () => keys().map((k) => (drag?.kind === 'key' && drag.moving.has(k.id) ? { ...k, t: drag.moving.get(k.id) + drag.dt } : k))
+    .sort((a, b) => a.t - b.t);
   /** Cuts: every hold key (except the last) ends a shot, and the camera cuts to the next key. A hold key and
    *  the next key within a frame or so of each other are one "split" key either side of the cut line. */
   const cutsOf = (ks) => {
@@ -137,10 +146,28 @@ export function mountTimeline(root, { viewport, exporter }) {
       store.set({ playing: false });
       seek(ok.t);
     } else if (k && e.button === 0) {
-      const p = cutPartner(k);
-      drag = { kind: 'key', id: k.id, t: k.t, t0: k.t, moved: false, partner: p?.id, offset: p ? p.t - k.t : 0 };
+      syncSel();
+      const anchor = store.state.key && store.keyById(store.state.key);
+      let collapse = false; // a plain click on a key of a multi-selection keeps it for dragging, then selects just that key
+      if (e.shiftKey && anchor) {
+        const [lo, hi] = [Math.min(anchor.t, k.t), Math.max(anchor.t, k.t)];
+        for (const x of keys()) if (x.t >= lo - 1e-6 && x.t <= hi + 1e-6) selKeys.add(x.id);
+      } else if (e.ctrlKey || e.metaKey) {
+        if (selKeys.has(k.id) && selKeys.size > 1) {
+          selKeys.delete(k.id);
+          store.set({ key: k.id === store.state.key ? [...selKeys][0] : store.state.key });
+          return draw();
+        }
+        selKeys.add(k.id);
+      } else if (selKeys.has(k.id) && selKeys.size > 1) collapse = true;
+      else selKeys = new Set([k.id]);
+      // move the selection and the other half of any cut it touches
+      const moving = new Map();
+      for (const id of selKeys) { const x = store.keyById(id); if (!x) continue; moving.set(id, x.t); const p = cutPartner(x); if (p) moving.set(p.id, p.t); }
+      const ts = [...moving.values()];
+      drag = { kind: 'key', id: k.id, t: k.t, t0: k.t, dt: 0, moved: false, moving, collapse, shift0: e.shiftKey, lo: -Math.min(...ts), hi: dur() - Math.max(...ts) };
       store.set({ key: k.id });
-      seek(k.t);
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey) seek(k.t);
     } else if (e.button === 0) {
       drag = { kind: 'scrub', moved: false };
       store.set({ playing: false });
@@ -151,30 +178,34 @@ export function mountTimeline(root, { viewport, exporter }) {
     if (!drag) { track.style.cursor = okeyAt(e.offsetX, e.offsetY) || keyAt(e.offsetX) ? 'grab' : 'default'; return; }
     drag.moved = true;
     const t = snap(tOf(e.offsetX), e);
-    if (drag.kind === 'key' || drag.kind === 'okey') { drag.t = t; seek(t); }
+    if (drag.kind === 'key') {
+      drag.dt = Math.max(drag.lo, Math.min(drag.hi, snap(tOf(e.offsetX, true), drag.shift0 ? null : e) - drag.t0));
+      drag.t = drag.t0 + drag.dt; seek(drag.t);
+    } else if (drag.kind === 'okey') { drag.t = t; seek(t); }
     else seek(t);
     draw();
   });
   track.addEventListener('pointerup', (e) => {
     const d = drag; drag = null;
     if (!d) return;
-    if (d.kind === 'key' && d.moved && Math.abs(d.t - d.t0) > 1e-4) {
-      const ops = [{ op: 'key.update', id: d.id, t: +d.t.toFixed(3) }];
-      if (d.partner) ops.push({ op: 'key.update', id: d.partner, t: +(d.t + d.offset).toFixed(3) });
-      store.op(ops, d.partner ? 'move cut' : 'retime key').catch(() => {});
-    }
+    if (d.kind === 'key' && d.moved && Math.abs(d.dt) > 1e-4) {
+      const ops = [...d.moving].map(([id, t0]) => ({ op: 'key.update', id, t: +(t0 + d.dt).toFixed(3) }));
+      const n = selKeys.size;
+      store.op(ops, n > 1 ? `move ${n} keys` : ops.length > 1 ? 'move cut' : 'retime key').catch(() => {});
+    } else if (d.kind === 'key' && d.collapse) { selKeys = new Set([d.id]); }
     if (d.kind === 'okey' && d.moved && Math.abs(d.t - d.t0) > 1e-4) {
       const k = store.object(d.id)?.anim?.find((x) => Math.abs(x.t - d.t0) < 1e-3);
       if (k) store.op([{ op: 'anim.remove', id: d.id, t: d.t0 }, { op: 'anim.key', id: d.id, t: +d.t.toFixed(3), position: k.position, rotation: k.rotation, scale: k.scale, ease: k.ease }], `retime ${d.id} key`).catch(() => {});
     }
-    if (d.kind === 'scrub' && !d.moved && !keyAt(e.offsetX)) store.set({ key: null });
+    if (d.kind === 'scrub' && !d.moved && !keyAt(e.offsetX)) { selKeys.clear(); store.set({ key: null }); }
     draw();
   });
   track.addEventListener('dblclick', (e) => { if (!keyAt(e.offsetX)) keyFromView(snap(tOf(e.offsetX), e)); });
   track.addEventListener('contextmenu', (e) => {
+    if (e.ctrlKey && !e.button) { e.preventDefault(); return; } // macOS ctrl-click is a selection toggle, not a right-click
     const ok = okeyAt(e.offsetX, e.offsetY);
     if (ok) { e.preventDefault(); store.op({ op: 'anim.remove', id: selObj().id, t: ok.t }, 'remove object key').catch(() => {}); return; }
-    const k = keyAt(e.offsetX); if (k) { e.preventDefault(); store.set({ key: k.id }); deleteKey(); } });
+    const k = keyAt(e.offsetX); if (k) { e.preventDefault(); if (!selKeys.has(k.id)) { selKeys = new Set([k.id]); store.set({ key: k.id }); } deleteKey(); } });
 
   // ---------- actions ----------
   async function keyObject(t = store.state.time) {
@@ -221,7 +252,10 @@ export function mountTimeline(root, { viewport, exporter }) {
   function deleteKey() {
     const id = store.state.key;
     if (!id) return;
-    store.op({ op: 'key.remove', id }, 'delete key').then(() => store.set({ key: null })).catch(() => {});
+    syncSel();
+    const ids = [...selKeys];
+    store.op(ids.map((id) => ({ op: 'key.remove', id })), ids.length > 1 ? `delete ${ids.length} keys` : 'delete key')
+      .then(() => { selKeys.clear(); store.set({ key: null }); }).catch(() => {});
   }
 
   // ---------- drawing ----------
@@ -330,7 +364,7 @@ export function mountTimeline(root, { viewport, exporter }) {
     // keys. At a cut the pair becomes one split key: half square = the shot ends, half diamond = the next starts.
     const cutA = new Map(cuts.filter((c) => c.tight).map((c) => [c.a.id, c])), cutB = new Map(cuts.map((c) => [c.b.id, c]));
     for (const k of ks) {
-      const x = xs.get(k.id), sel = k.id === store.state.key, r = sel ? 6 : 5;
+      const x = xs.get(k.id), sel = selKeys.has(k.id), r = sel ? 6 : 5;
       ctx.beginPath();
       if (cutA.has(k.id)) { const cx = Math.round(cutA.get(k.id).x) + 0.5; ctx.rect(cx - 1.5 - (r - 0.5), mid - r + 1, r - 0.5, 2 * r - 2); }
       else if (cutB.has(k.id)) { const cx = Math.round(cutB.get(k.id).x) + 0.5; ctx.moveTo(cx + 1.5, mid - r); ctx.lineTo(cx + 1.5 + r, mid); ctx.lineTo(cx + 1.5, mid + r); ctx.closePath(); }
@@ -384,14 +418,18 @@ export function mountTimeline(root, { viewport, exporter }) {
     keyBtn.title = store.state.camDirty ? 'The camera moved: press K to key this framing' : 'Key the current view at the playhead (K)';
     shotDur.textContent = tl.duration.toFixed(2);
     shotFps.textContent = fmtFps(tl.fps);
+    syncSel();
     const k = store.state.key && store.keyById(store.state.key);
     keyGroup.style.display = k ? '' : 'none';
+    const multi = selKeys.size > 1;
+    easeBtn.style.display = toViewBtn.style.display = multi ? 'none' : ''; // .cc-btn sets display, so hidden alone would not hide it
+    delKeyBtn.title = multi ? `Delete ${selKeys.size} keys` : 'Delete key';
     if (k) {
       const sorted = keys();
       const i = sorted.findIndex((x) => x.id === k.id);
       const last = i === sorted.length - 1;
-      keyTime.textContent = `${k.t.toFixed(2)} s`;
-      keyTime.title = `Key ${k.id}`;
+      keyTime.textContent = multi ? `${selKeys.size} keys` : `${k.t.toFixed(2)} s`;
+      keyTime.title = multi ? 'Drag any selected key to move them all. Shift-click selects a range, Ctrl/Cmd-click adds or removes one' : `Key ${k.id}`;
       changed(easeGlyph, last ? 'linear' : k.ease, () => { easeGlyph.innerHTML = easeSvg(last ? 'linear' : k.ease); });
       easeName_.textContent = last ? 'last key' : easeName(k.ease);
       easeBtn.disabled = last;
