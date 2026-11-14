@@ -435,7 +435,15 @@ function mountCurveEditor(root, { updateKey, keys, onToggle, anchor }) {
   const presets = h('div.curve-presets');
   const help = h('div.curve-help.cc-label');
   const closeBtn = button({ icon: 'close', kind: 'ghost', title: 'Close', onClick: () => toggle(false) });
-  const pop = h('div.cc-panel.curve-pop', { hidden: true }, h('div.cc-row', {}, tabs, h('span.cc-spacer'), closeBtn), title, cv, presets, help);
+  // copy this segment's ease to every other segment (cuts stay cuts), as one undo step
+  const allBtn = button({ label: 'Apply to all segments', kind: 'ghost', title: 'Give every segment this ease. Cuts stay cuts.', onClick: () => {
+    const tg = target();
+    if (!tg || tg.kind !== 'segment') return;
+    store.op({ op: 'key.easeAll', from: tg.key.id }, 'ease all segments')
+      .then((res) => toast(`${easeName(tg.ease)} on ${res[0].updated} segments`)).catch(() => {});
+  } });
+  allBtn.classList.add('curve-all');
+  const pop = h('div.cc-panel.curve-pop', { hidden: true }, h('div.cc-row', {}, tabs, h('span.cc-spacer'), closeBtn), title, cv, presets, allBtn, help);
   root.append(pop);
 
   let live = null;   // bezier being dragged
@@ -534,6 +542,11 @@ function mountCurveEditor(root, { updateKey, keys, onToggle, anchor }) {
     const current = tg ? easeName(tg.ease) : '';
     changed(presets, [mode, current], () => presets.replaceChildren(...Object.keys(EASES).filter((k) => !(mode === 'speed' && k === 'hold')).map((k) =>
       button({ label: k, kind: 'ghost', active: k === current, onClick: () => commit(k) }))));
+    // only worth offering when another segment would change
+    const ks = keys(), cur = tg?.ease;
+    const others = tg?.kind === 'segment' ? ks.slice(0, -1).filter((k) => k !== tg.key && !isCut(k)) : [];
+    allBtn.hidden = !others.length || isCut(tg.key);
+    allBtn.disabled = others.every((k) => JSON.stringify(k.ease) === JSON.stringify(cur));
     help.textContent = mode === 'speed'
       ? 'Remaps time across the whole shot: ease-in starts slow and ends fast. Applied on top of each segment ease.'
       : 'How the camera travels between the two keys. The shaded area is its speed. Drag the orange handles.';

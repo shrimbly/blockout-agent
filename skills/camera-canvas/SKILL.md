@@ -102,6 +102,8 @@ canvas key --t 2 --from-view          # key whatever the user is looking at righ
   cut is independent. To cut from one moving shot straight into another, give the last key of shot A
   `--ease hold` at the cut time and put the first key of shot B one frame later (t + 1/fps):
   `canvas key --t 3 --pos ... --ease hold` then `canvas key --t 3.042 --pos ...` at 24 fps.
+- `canvas ease-all slowOut` gives every camera segment one ease (cuts stay cuts); `--from <keyId>`
+  copies a key's ease to all the others. Use it for "make the whole move feel the same".
 - `canvas timeline --speed easeIn` remaps time across the whole shot (a speed ramp), on top of segment eases.
 - Path interpolation is a smooth spline through all keys (`--interp linear` for straight segments).
 - Defaults that work for video models: 24 fps (decimals such as 23.976 are allowed), 3–8 s, 1280×720 (`canvas meta --width --height`).
