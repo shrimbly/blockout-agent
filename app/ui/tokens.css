@@ -1,4 +1,4 @@
-/* Camera Canvas design tokens. Every control uses these, never raw values.
+/* Blockout design tokens. Every control uses these, never raw values.
    See docs/DESIGN.md before adding or changing anything here. */
 :root {
   /* surfaces */

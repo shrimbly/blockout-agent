@@ -1,4 +1,4 @@
-# Blockout Agent (Camera Canvas)
+# Blockout
 
 A hyper-minimal three.js canvas for **blocking out 3D scenes and camera moves with your coding
 agent** (Claude Code or Codex), then exporting a blockout video to use as a reference for a
@@ -30,7 +30,7 @@ your browser, starts listening to it and asks what you want to block out. Answer
 canvas: it is the same conversation. That's the whole setup; nothing to clone, install or keep open.
 
 The plugin brings the `/blockout-agent:start` command, the `camera-canvas` skill, the `canvas` command (on Claude's PATH), the listening hooks
-and the `canvas-builder` helper. Your scenes, saves and exports live in `~/Camera Canvas/scenes/`, so
+and the `canvas-builder` helper. Your scenes, saves and exports live in `~/Blockout/scenes/` (or `~/Camera Canvas/scenes/` if you used it before the rename), so
 plugin updates never touch them (`CANVAS_DATA` moves them).
 
 **Updates.** Claude Code doesn't auto-update plugins from third-party marketplaces unless you turn it
@@ -42,7 +42,7 @@ the new copy.
 Listening belongs to the session that turned it on: the plugin's hooks run in every Claude Code
 session but do nothing in any other one, and nothing at all while the canvas server is stopped.
 
-## Without the plugin (Codex, or working on Camera Canvas itself)
+## Without the plugin (Codex, or working on Blockout itself)
 
 ```bash
 npm install
@@ -152,7 +152,7 @@ registers it in `app/controls/index.js`, and open tabs reload automatically. See
 
 Environment: `CANVAS_PORT` (5317), `CANVAS_SCENE` (scene file path), `CANVAS_EXPORTS`,
 `CANVAS_LISTEN_SECONDS` (Stop-hook wait, default 3300), `CANVAS_DATA` (where scenes live; default the
-repo for a checkout, `~/Camera Canvas` for the plugin).
+repo for a checkout, `~/Blockout` for the plugin).
 
 ## Tests
 

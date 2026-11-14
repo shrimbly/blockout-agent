@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// canvas: the agent's command line for Camera Canvas.
+// canvas: the agent's command line for Blockout.
 // Every command talks to the bridge server over HTTP (default http://127.0.0.1:5317).
 // Run `canvas help` for the reference.
 
@@ -13,14 +13,14 @@ import { EASES, lensToFov } from '../core/curves.js';
 import { dataDir } from '../server/paths.mjs';
 
 if (Number(process.versions.node.split('.')[0]) < 20) {
-  console.error(`error: Camera Canvas needs Node 20 or newer (this is ${process.version}). Install it from https://nodejs.org and try again.`);
+  console.error(`error: Blockout needs Node 20 or newer (this is ${process.version}). Install it from https://nodejs.org and try again.`);
   process.exit(1);
 }
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BASE = (process.env.CANVAS_URL || `http://127.0.0.1:${process.env.CANVAS_PORT || 5317}`).replace(/\/$/, '');
 
-const HELP = `canvas — drive the Camera Canvas blockout scene
+const HELP = `canvas — drive the Blockout scene
 
 Server
   canvas up [--scene path] [--no-open]     start the server in the background (if needed) and open the tab
@@ -226,7 +226,7 @@ const listenOwner = () => ({ session: process.env.CLAUDE_CODE_SESSION_ID || null
 function ownsCanvas(st, input) {
   if (st.listen && st.listenSession) return input.session_id === st.listenSession;
   if (st.listen && st.listenCwd) return !!input.cwd && path.resolve(input.cwd) === path.resolve(st.listenCwd);
-  // Nobody is listening yet: only sessions started inside a Camera Canvas checkout pick up queued prompts.
+  // Nobody is listening yet: only sessions started inside a Blockout checkout pick up queued prompts.
   return !!input.cwd && (path.resolve(input.cwd) + path.sep).startsWith(ROOT + path.sep);
 }
 // Two copies of the hooks can run for one session (the plugin's and a checkout's .claude/settings.json):

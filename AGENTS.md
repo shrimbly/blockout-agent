@@ -1,4 +1,4 @@
-# Camera Canvas: agent instructions
+# Blockout: agent instructions
 
 This repo is a minimal three.js blockout canvas that you (Claude Code, Codex, or another coding
 agent) operate for the user. The user watches the canvas in a browser and can type prompts into it;

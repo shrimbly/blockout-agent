@@ -21,7 +21,7 @@
   (`.claude/agents/canvas-builder.md`, generated from `skills/camera-canvas/references/builder.md`) in
   one message so they run in parallel, following `skills/camera-canvas/references/orchestration.md`.
   Helpers never listen, reply or touch the camera; you keep the canvas chat, camera and final review.
-- Camera Canvas also ships as a Claude Code plugin from this same folder: `.claude-plugin/` (manifest and
+- Blockout also ships as a Claude Code plugin from this same folder: `.claude-plugin/` (manifest and
   marketplace), `hooks/hooks.json` (the same two hooks), `bin/canvas` (the `canvas` command on PATH) and the
   skill in `skills/`. Keep `hooks/hooks.json` in step with `.claude/settings.json` (npm test checks it). Leave
   `version` out of `.claude-plugin/plugin.json` (npm test checks it): without one, every commit on main is

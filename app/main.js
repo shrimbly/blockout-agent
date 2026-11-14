@@ -1,4 +1,4 @@
-// Camera Canvas bootstrap: connects to the bridge server, wires the viewport, timeline, chat sidebar,
+// Blockout bootstrap: connects to the bridge server, wires the viewport, timeline, chat sidebar,
 // registered controls, keyboard shortcuts and the RPC methods the agent calls (canvas seek/snapshot/export...).
 
 import { store } from './store.js';

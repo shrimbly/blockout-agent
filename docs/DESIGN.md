@@ -1,4 +1,4 @@
-# Camera Canvas design system
+# Blockout design system
 
 The canvas is a 3D scene with as little chrome as possible. The base UI is: a chat sidebar (right,
 collapsible), a selection chip (top left, only while something is selected), a help button (top right)

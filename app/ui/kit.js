@@ -1,4 +1,4 @@
-// Camera Canvas UI kit: the only building blocks a control may use.
+// Blockout UI kit: the only building blocks a control may use.
 // Each factory returns a DOM element. Value controls also get .value (get/set) and fire onChange(value).
 // Rules live in docs/DESIGN.md.
 
