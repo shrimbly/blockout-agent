@@ -39,9 +39,10 @@ export const store = {
     if (Object.keys(changed).length) this.emit('state', changed);
   },
 
-  /** Send ops to the server. Resolves with results; shows errors as toasts via the 'error' event. */
-  async op(ops, label) {
-    const res = await fetch('/api/op', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops, label, source: 'ui' }) });
+  /** Send ops to the server. Resolves with results; shows errors as toasts via the 'error' event.
+   *  amend: not an undo step (bookkeeping the browser does on its own, like recording an audio file's length). */
+  async op(ops, label, { amend = false } = {}) {
+    const res = await fetch('/api/op', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ops, label, source: 'ui', amend: amend || undefined }) });
     const data = await res.json();
     if (!data.ok) { this.emit('error', data.error); throw new Error(data.error); }
     return data.results;

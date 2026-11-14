@@ -3,6 +3,7 @@
 import { h, button, segmented, number, select, icon, toast, affix, panel, toggle as onOff } from './ui/kit.js';
 import { EASES, bezier, bezierSpeed, resolveEase, easeName, sampleCamera, fovToLens, lensToFov, isCut } from '/core/curves.js';
 import { store } from './store.js';
+import { mountAudioTrack } from './audiotrack.js';
 
 const PAD = 14;
 const SIZES = [[1280, 720], [1920, 1080], [3840, 2160], [1080, 1920], [1080, 1080], [1440, 1080]];
@@ -65,13 +66,19 @@ export function mountTimeline(root, { viewport, exporter }) {
     h('span.cc-mono', {}, shotDur, h('span.cc-affix__unit', {}, ' s')), h('span.tl-faint', {}, '·'), h('span.cc-mono', {}, shotFps, h('span.cc-affix__unit', {}, ' fps')), icon('chevronDown'));
   const exportBtn = button({ icon: 'film', label: 'Export', kind: 'primary', title: 'Render the blockout video (mp4)', onClick: () => exporter.exportVideo().catch((e) => toast(e.message, { kind: 'error' })) });
 
+  // audio: a waveform lane under the track, an Audio button in the bar (functions below are hoisted)
+  const audioTrack = mountAudioTrack(root, {
+    xOf: (t) => xOf(t), tOf: (x, free) => tOf(x, free), seek: (t) => seek(t),
+    cutXs: () => cutsOf(liveKeys()).map((c) => c.x), keyXs: () => [...keyXs(liveKeys()).values()],
+  });
+
   const bar = h('div.tl-bar',
     {}, startBtn, playBtn, loopBtn, timeEl, frameEl, h('span.cc-divider'), viewSeg, keyBtn, cutBtn, lensField, keyGroup, objKeyBtn,
-    h('span.cc-spacer'), shotBtn, exportBtn);
+    h('span.cc-spacer'), audioTrack.btn, shotBtn, exportBtn);
 
   // ---------- track ----------
   const track = h('canvas.tl-track');
-  root.append(bar, track);
+  root.append(bar, track, audioTrack.lane);
   const ctx = track.getContext('2d');
   let drag = null; // { kind: 'key'|'scrub', id, t, moved }
 
@@ -79,7 +86,7 @@ export function mountTimeline(root, { viewport, exporter }) {
   const fps = () => store.doc.timeline.fps;
   const width = () => track.clientWidth;
   const xOf = (t) => PAD + (t / dur()) * (width() - PAD * 2);
-  const tOf = (x) => Math.max(0, Math.min(dur(), ((x - PAD) / (width() - PAD * 2)) * dur()));
+  const tOf = (x, free) => { const t = ((x - PAD) / (width() - PAD * 2)) * dur(); return free ? t : Math.max(0, Math.min(dur(), t)); };
   const snap = (t, e) => (e?.shiftKey ? t : Math.round(t * fps()) / fps());
   const keys = () => [...store.doc.timeline.keys].sort((a, b) => a.t - b.t);
   // While a key is dragged, it (and the other half of its cut) is drawn at the drag time.
@@ -409,6 +416,7 @@ export function mountTimeline(root, { viewport, exporter }) {
     lensField.title = lensOff ? 'Select a key to change its lens' : k ? 'Lens of the selected key; the free view uses it too' : 'Lens of the free view; new keys get it';
     exportBtn.disabled = store.state.exporting;
     draw();
+    audioTrack.refresh();
     curve.refresh();
     shot.refresh();
   }
@@ -421,7 +429,7 @@ export function mountTimeline(root, { viewport, exporter }) {
   store.on('doc', refresh);
   store.on('state', refresh);
   new ResizeObserver(draw).observe(track);
-  return { refresh, keyFromView, cutHere, seek, deleteKey, draw };
+  return { refresh, keyFromView, cutHere, seek, deleteKey, draw, loadAudio: audioTrack.loadFile };
 }
 
 /** Popover with a draggable cubic-bezier for the segment at the playhead, or the shot-wide speed curve. */

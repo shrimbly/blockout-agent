@@ -138,6 +138,22 @@ canvas storyboard --frames 6                # check it, then reply
   object's keys show as circles under the camera keys; dragging an animated object with the gizmo keys it
   at the playhead.
 
+## 4c. Audio: pace the shot to music or dialogue
+
+The timeline can hold one audio track. It shows as a waveform under the camera keys, plays with the
+playhead and is mixed into the export (AAC).
+
+```bash
+canvas audio ~/Music/track.mp3            # load it (or the user drops a file on the timeline)
+canvas audio --offset -1.5                # start 1.5 s into the file (positive: audio starts later)
+canvas audio --fit                        # make the shot end where the audio ends
+canvas audio --beats                      # tempo, beat times and strong onsets inside the shot
+canvas audio --mute on | --volume 0.5 | --clear
+```
+
+To cut or key on the music, read `canvas audio --beats` and put keys and cuts on those times (snap to
+the frame grid). `canvas ls` shows the audio line.
+
 ## 4b. Save and load versions
 
 The scene autosaves continuously, and once it has been saved under a name every change also autosaves into that named version (`meta.name`). Before a big rework (or when the user says "save this"), keep a

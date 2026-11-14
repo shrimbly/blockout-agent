@@ -365,6 +365,50 @@ try {
     ok(/^h264,320,48$/.test(probe), `ffprobe: ${probe}`);
   } catch { console.log('     (ffprobe not available, skipped)'); }
 
+  // --- audio track: load from the CLI, waveform lane, beats, slide, mixed into the export ---
+  const wav = path.join(dir, 'Click Track.wav');
+  { // 6 s of clicks every 0.5 s (120 bpm), 44.1 kHz mono 16-bit
+    const sr = 44100, n = sr * 6, b = Buffer.alloc(44 + n * 2);
+    b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVEfmt ', 8); b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22);
+    b.writeUInt32LE(sr, 24); b.writeUInt32LE(sr * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34); b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+    for (let i = 0; i < n; i++) { const t = i / sr, u = t % 0.5; b.writeInt16LE(Math.round(20000 * Math.sin(2 * Math.PI * 90 * t) * Math.exp(-30 * u) + 600 * Math.sin(2 * Math.PI * 440 * t)), 44 + i * 2); }
+    fs.writeFileSync(wav, b);
+  }
+  const loaded = cli('audio', wav);
+  ok(/audio: Click Track\.wav \(click-track-[0-9a-f]{8}\.wav\)/.test(loaded), `canvas audio loads a file (${loaded.split('\n')[0]})`);
+  await page.waitForFunction(() => window.canvas.audio.peaks && !document.querySelector('.tl-audio').hidden && document.body.classList.contains('has-audio'));
+  ok(true, 'the timeline shows the waveform lane');
+  await page.waitForFunction(() => window.canvas.store.doc.timeline.audio.length === 6);
+  ok(true, 'the tab records the audio length (not as an undo step)');
+  const beats = JSON.parse(cli('audio', '--beats', '--json'));
+  ok(Math.abs(beats.tempo - 120) < 3 && beats.beats.length >= 7, `beat finder: ${beats.tempo} bpm, beats ${beats.beats.slice(0, 4).join(' ')}…`);
+  cli('audio', '--offset', '-0.25');
+  ok(cli('ls').includes('audio: Click Track.wav at -0.25s, 6s long'), 'ls shows the audio track');
+  await page.locator('.tl-audiobtn').click();
+  ok(await page.locator('.audio-pop').isVisible() && /0\.25–4\.25/.test(await page.locator('.audio-pop .audio-foot').textContent()), 'Audio menu shows the part of the file the shot plays');
+  await page.screenshot({ path: path.join(dir, 'audio.png') });
+  await page.keyboard.press('Escape');
+  // slide the audio by dragging the waveform
+  const lb = await page.locator('.tl-audio').boundingBox();
+  await page.mouse.move(lb.x + lb.width * 0.5, lb.y + lb.height / 2); await page.mouse.down();
+  await page.mouse.move(lb.x + lb.width * 0.6, lb.y + lb.height / 2, { steps: 4 }); await page.mouse.up();
+  await page.waitForFunction(() => window.canvas.store.doc.timeline.audio.offset > 0);
+  ok(true, `dragging the waveform slides the audio (offset ${await page.evaluate(() => window.canvas.store.doc.timeline.audio.offset)}s)`);
+  cli('undo');
+  cli('audio', '--fit');
+  ok(JSON.parse(cli('doc')).timeline.duration === 5.75, 'audio --fit makes the shot end with the audio');
+  cli('timeline', '--duration', '4');
+  const aexp = cli('export', '--width', '320', '--height', '180');
+  const afile = aexp.split('\n')[0];
+  ok(/audio/.test(aexp), `export mixes in the audio (${aexp.split('\n')[1]})`);
+  try {
+    const probe = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,duration', '-of', 'csv=p=0', afile], { encoding: 'utf8' }).trim().split('\n');
+    ok(probe.some((l) => /^aac,audio,(3\.9|4\.0)/.test(l)) && probe.some((l) => /^h264,video/.test(l)), `ffprobe: ${probe.join(' | ')}`);
+  } catch { console.log('     (ffprobe not available, skipped)'); }
+  cli('audio', '--clear');
+  await page.waitForFunction(() => document.querySelector('.tl-audio').hidden && !document.body.classList.contains('has-audio'));
+  ok(true, 'audio --clear removes the lane');
+
   ok(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(' | ')}` : ''}`);
 } finally {
   await browser.close();
